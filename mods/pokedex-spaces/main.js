@@ -420,8 +420,16 @@ export default class Spaces extends View {
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(on ? SCREEN : "#ffd3a8").child(`\u2193${g.behind}`)));
   }
 
+  // The project's partner Pokemon, as pokedex-agents saved it (space name -> project key -> Pokemon).
+  partner(w) {
+    const key = shared("pokedex.projects")?.[w.name] ?? w.name;
+    const id = shared("pokedex.partners")?.[key];
+    return Number.isInteger(id) && id >= 1 && id <= 151 ? id : null;
+  }
+
   row({ w, i, g, tree }, t) {
     const on = w.active;
+    const pet = tree ? null : this.partner(w);
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
@@ -474,7 +482,11 @@ export default class Spaces extends View {
           .items_center()
           .when(Boolean(tree), el => el.pl(22).child(svg("mods/workspace-chrome/branch.svg").size(13).text_color(on ? SCREEN : CREAM)))
           .when(!tree, el => el.child(div().size(6).flex_none().bg(fill)))
-          .child(div().flex_shrink(0).max_w(140).truncate().font_family(PX).text_size(16).line_height("16px")
+          // The sprite at 32 px in a 24 px window that crops the art's empty margin; the row keeps its height.
+          .when(Boolean(pet), el => el.child(div().id(`pet-${w.id}`).size(24).flex_none().overflow_hidden().flex().items_center().justify_center()
+            .tooltip(`Partner: #${String(pet).padStart(3, "0")}`)
+            .child(image(`mods/pokedex-agents/pokemon/${pet}.png`).size(32).flex_none())))
+          .child(div().flex_shrink(0).max_w(pet ? 112 : 140).truncate().font_family(PX).text_size(16).line_height("16px")
             .text_color(on ? SCREEN : CREAM).child(w.name))
           .when(w.status === "blocked" || w.status === "done", el => el.child(div().flex_none().font_family(PX).text_size(16).text_color(on ? SCREEN : (w.status === "blocked" ? "#ffd3a8" : LCD)).child(w.status === "blocked" ? "!" : "*")))
           .child(g ? this.gitTail(g, tree, w.name, on) : div().flex_1()),

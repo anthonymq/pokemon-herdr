@@ -20,7 +20,7 @@ The footer holds the trainer strip (level, streak, badges) and Settings.
 ## Contents
 
 - `layouts/pokedex.json` and its settings preview.
-- Nine custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
+- Ten custom mods (including `pokedex-picker`, a clone of Herdr's picker): `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
   `pokedex-tabs`, `pokedex-pane`, `pokedex-collection`, `pokedex-trainer`
   `pokedex-encounter` and `pokedex-toast` (wild encounters pop up as a
   flashing battle card over the layout).
@@ -70,7 +70,11 @@ Merge the `programs` entries from this repository's `programs.json` into your
 existing file instead of replacing it. OMP and OMO must be installed as
 `omp` and `omo` for their launcher choices to be enabled. Claude Code and
 Codex use Herdr's built-in entries; Codex retains `--no-daemon`.
-Personal settings and keybindings are not included.
+Personal settings are not included. `keys.json` holds only a `layout:pokedex`
+section that opens `pokedex-picker` (Herdr's tab and space picker, cloned to show
+each space's Pokemon) on cmd-P, cmd-S and ctrl-A A while the pokedex layout is
+shown; merge that section into your own `keys.json` and change the keys to your
+picker keys if they differ.
 
 The Projects mod runs `git` and `hc` and watches Git metadata outside its own
 folder. For remote spaces, those commands run on the space's machine through
@@ -80,7 +84,7 @@ Validate the mods:
 
 ```sh
 (
-  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection pokedex-trainer pokedex-encounter pokedex-toast; do
+  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection pokedex-trainer pokedex-encounter pokedex-toast pokedex-picker; do
     herdr-app check "$HOME/.config/herdr-app/mods/$mod" || exit 1
   done
 ) && herdr-app do layout.switch --name pokedex

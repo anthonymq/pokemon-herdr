@@ -1,0 +1,8 @@
+{
+  "layout:pokedex": {
+    "cmd-p": "mod.open:pokedex-picker",
+    "cmd-s": "mod.open:pokedex-picker",
+    "ctrl-a ctrl-a": "mod.open:pokedex-picker",
+    "ctrl-a a": "mod.open:pokedex-picker"
+  }
+}
