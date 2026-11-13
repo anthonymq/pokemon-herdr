@@ -188,6 +188,18 @@ export default class Agents extends View {
     }
   }
 
+  // A project shown here without a saved partner saves the one it draws (the default picked from the space
+  // name). The trainer card reads saved partners only, and spaces sharing a repo then share one Pokemon.
+  savePartners(list) {
+    const partners = shared("pokedex.partners") ?? {};
+    const missing = {};
+    for (const a of list) {
+      const key = projectKey(a.space_name);
+      if (partners[key] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(a.space_name)];
+    }
+    if (Object.keys(missing).length) setShared("pokedex.partners", { ...partners, ...missing });
+  }
+
   // A sub-agent without its own pane that goes from working to idle or done earns its project 10 XP.
   // Kept sub-agents are in agents() and earn through track() like any agent.
   trackSubAgents(list, all) {
@@ -416,6 +428,7 @@ export default class Agents extends View {
     const now = Date.now();
     this.track(list, now);
     this.resolveProjects(cx);
+    this.savePartners(list);
     this.trackSubAgents(list, terminals());
     this.catchOpened(list);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows

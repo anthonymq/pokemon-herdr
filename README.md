@@ -42,6 +42,8 @@ The footer holds the trainer strip (level, streak, badges) and Settings.
 - Badges: Boulder (10 caught), Cascade (50 tasks), Thunder (an evolution),
   Rainbow (3-day streak), Soul (75 caught), Marsh (500 tasks), Volcano
   (30-day streak), Earth (all 151).
+- Evolutions and badges play short original chiptune jingles (silent when
+  Herdr's sounds are off); level-ups are announced every 5 levels.
 - Click the footer strip for the trainer card. Progress is stored in your
   own `shared.json` and counts only while Herdr is open.
 - 151 Gen 1 Pokémon sprites and names, pixel fonts with their license notices, and native icons.
@@ -50,6 +52,13 @@ The footer holds the trainer strip (level, streak, badges) and Settings.
 Herdr's shipped `files`, `changes`, `menu`, `new-menu`, `worktree` and
 `workspace-chrome` mods/assets remain dependencies supplied by Herdr.
 This is a layout package, not the Herdr application source.
+
+## Develop
+
+The game rules live in `mods/pokedex-agents/game.js`. After changing it, run
+`scripts/sync-game.sh` to copy it into the other mods, then `bun test`.
+GitHub Actions runs `scripts/sync-game.sh --check` and `bun test` on every
+push.
 
 ## Install
 

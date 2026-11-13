@@ -5,7 +5,7 @@
 // { xp: {project: n}, tasks, subtasks, evolutions, streak: {last, days, best}, badges: [ids], shiny: [ids],
 //   encounter: {id, at, balls} | null, encounters: {seen, caught, fled}, recent: [{id, at}] }
 // A project key is the space's git repo root (machine-qualified for remote spaces), else its name.
-import { shared, setShared, notify } from "herdr";
+import { shared, setShared, notify, playSound, settings } from "herdr";
 import { POKEMON as DEX } from "./pokemon.js";
 
 export const nameOf = (id) => DEX[id - 1]?.name ?? `#${id}`;
@@ -21,6 +21,14 @@ export const ENCOUNTER_CHANCE = 0.15;
 export const ENCOUNTER_MS = 60000;
 export const BALLS = 3;
 const RECENT = 10;
+const LEVEL_NEWS_EVERY = 5; // level-up toasts only when a partner crosses Lv5, Lv10, Lv15...
+const JINGLES = { evolve: "mods/pokedex-agents/sounds/evolve.mp3", badge: "mods/pokedex-agents/sounds/badge.mp3" };
+
+// Evolutions and badges get their own short jingle, silent when the person turned sounds off.
+function jingle(name) {
+  if (settings().sounds?.enabled === false) return;
+  playSound(JINGLES[name]);
+}
 const LEGENDARY = [144, 145, 146, 150, 151];
 
 // A finished turn earns 10 XP plus 5 per full minute it ran, up to 100.
@@ -93,10 +101,12 @@ function addCaught(g, ids) {
   return fresh;
 }
 
-function save(g) {
+// `jingled`: an evolution already played its jingle in this save, so a badge earned with it stays quiet.
+function save(g, jingled = false) {
   const count = (shared(CAUGHT) ?? []).length;
   const earned = BADGES.filter((b) => !g.badges.includes(b.id) && b.test(g, count));
   if (earned.length) {
+    if (!jingled) jingle("badge");
     g.badges = [...g.badges, ...earned.map((b) => b.id)];
     for (const b of earned) notify({ title: `${b.name} Badge earned!`, body: b.goal, level: "success" });
   }
@@ -126,8 +136,10 @@ export function migrateProject(from, to) {
   }
 }
 
-// XP to a project's partner, with level-up and evolution news. Mutates g.
+// XP to a project's partner, with level-up and evolution news. Mutates g; true when it evolved.
 function award(g, project, partnerId, amount) {
+  // A project's first XP saves its partner, so every view (the trainer card too) shows the same one.
+  if ((shared(PARTNERS) ?? {})[project] === undefined) setShared(PARTNERS, { ...(shared(PARTNERS) ?? {}), [project]: partnerId });
   const before = levelOf(g.xp[project]);
   g.xp = { ...g.xp, [project]: (g.xp[project] ?? 0) + amount };
   const after = levelOf(g.xp[project]);
@@ -141,17 +153,21 @@ function award(g, project, partnerId, amount) {
     g.evolutions += 1;
     setShared(PARTNERS, { ...(shared(PARTNERS) ?? {}), [project]: id });
     addCaught(g, [id]);
+    jingle("evolve");
     notify({ title: `What? ${nameOf(partnerId)} is evolving!`, body: `${label}'s partner became ${nameOf(id)} (Lv ${after}).`, level: "success", icon: `mods/pokedex-agents/pokemon/${id}.png` });
-  } else if (after > before) {
-    notify({ title: `${nameOf(partnerId)} grew to Lv ${after}!`, body: label, level: "info" });
+    return true;
   }
+  if (Math.floor(after / LEVEL_NEWS_EVERY) > Math.floor(before / LEVEL_NEWS_EVERY)) {
+    notify({ title: `${nameOf(partnerId)} reached Lv ${after}!`, body: label, level: "info", icon: `mods/pokedex-agents/pokemon/${partnerId}.png` });
+  }
+  return false;
 }
 
 // A finished agent turn: XP by its length, the streak, maybe a wild Pokemon.
 export function finishTask(project, partnerId, ms) {
   const g = game();
   g.tasks += 1;
-  award(g, project, partnerId, taskXp(ms));
+  const evolved = award(g, project, partnerId, taskXp(ms));
 
   const today = day(new Date());
   if (g.streak.last !== today) {
@@ -171,15 +187,14 @@ export function finishTask(project, partnerId, ms) {
     g.encounters = { ...g.encounters, seen: g.encounters.seen + 1 };
     notify({ title: `A wild ${nameOf(wild)} appeared!`, body: "Click to throw a Poke Ball.", level: "info", timeout: ENCOUNTER_MS, icon: `mods/pokedex-agents/pokemon/${wild}.png`, action: { name: "mod.open", args: { name: "pokedex-encounter" } } });
   }
-  save(g);
+  save(g, evolved);
 }
 
 // A finished sub-agent (one without its own pane): a smaller award, no encounter, no streak day.
 export function finishSubTask(project, partnerId) {
   const g = game();
   g.subtasks += 1;
-  award(g, project, partnerId, SUBTASK_XP);
-  save(g);
+  save(g, award(g, project, partnerId, SUBTASK_XP));
 }
 
 // One Poke Ball at the waiting encounter: "caught", "missed", "fled" or "gone".
