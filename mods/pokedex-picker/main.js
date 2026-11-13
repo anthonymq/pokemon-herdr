@@ -170,7 +170,8 @@ export default class Picker extends View {
   }
 
   render() {
-    const t = theme();
+    const t = { ...theme(), popover: "#244438", background: "#17251f", hover: "#355746", border: "#67866c",
+      foreground: "#d9e8bc", muted: "#b6c6b8", dim: "#819788", accent: "#71d5df" };
     const rows = this.rows();
     const pickable = rows.filter((r) => r.kind !== "head");
     // Opens on where you are.
@@ -325,7 +326,7 @@ export default class Picker extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().items_center().child(div().flex_1().text_size(15).font_semibold().text_color(t.foreground).child("Go to…")).child(div().id("picker-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
+      .child(h_flex().items_center().child(div().flex_1().font_family("PxPlus IBM VGA 8x16").text_size(18).text_color(t.foreground).child("GO TO…")).child(div().id("picker-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
       .child(
         h_flex().h(36).flex_none().px(10).gap(8).items_center().rounded(9).border_1().border_color(t.accent).bg(t.background)
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
