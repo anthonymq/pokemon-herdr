@@ -18,9 +18,9 @@ The footer contains only Settings.
 ## Contents
 
 - `layouts/pokedex.json` and its settings preview.
-- Five custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
-  `pokedex-tabs` and `pokedex-pane`.
-- Pokémon sprites, pixel fonts with their license notices, and native icons.
+- Six custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
+  `pokedex-tabs`, `pokedex-pane` and `pokedex-collection`.
+- 151 Gen 1 Pokémon sprites and names, pixel fonts with their license notices, and native icons.
 - `programs.json` with OMP/OMO launcher entries and their personal icon.
 
 Herdr's shipped `files`, `changes`, `menu`, `new-menu`, `worktree` and
@@ -47,7 +47,7 @@ Validate the mods:
 
 ```sh
 (
-  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane; do
+  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection; do
     herdr-app check "$HOME/.config/herdr-app/mods/$mod" || exit 1
   done
 ) && herdr-app do layout.switch --name pokedex
@@ -67,7 +67,7 @@ not part of this package; use an installed layout name on your own machine.
 
 The blue sensor opens the command palette. Settings opens Look settings.
 Projects and agent cards focus their spaces or terminals. Pokémon portraits
-cycle the partner associated with a project. The tab bar supports new
+change the Gen 1 partner of a project. KANTO DEX opens a searchable collection where Pokemon are caught when an agent opens in their project (or by hand); they are saved in your Herdr `shared.json`, never in this repo. The tab bar supports new
 terminals/installed agents and Files/Changes panels.
 
 Working, Needs you, Done and Idle are taken from Herdr's reported status.

@@ -1,0 +1,6 @@
+{
+  "place": "none",
+  "title": "Kanto Pokedex",
+  "focusable": true,
+  "overlay": { "width": 820, "height": 680 }
+}

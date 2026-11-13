@@ -88,11 +88,15 @@ function duration(ms) {
 }
 
 // Spaces are the project identity in the sidebar. All their agents share a pet.
-const POKEMON = [1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387];
+const LEGACY_POKEMON = [1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387];
+const POKEMON = Array.from({ length: 151 }, (_, i) => i + 1);
 function projectPet(name) {
+  const selected = shared("pokedex.partners")?.[name];
+  if (Number.isInteger(selected) && selected >= 1 && selected <= 151) return selected - 1;
   let hash = 2166136261;
   for (const c of name || "?") hash = Math.imul(hash ^ c.codePointAt(0), 16777619);
-  return ((hash >>> 0) + (shared("retro-pokemon.steps")?.[name] ?? 0)) % POKEMON.length;
+  const legacy = LEGACY_POKEMON[((hash >>> 0) + (shared("retro-pokemon.steps")?.[name] ?? 0)) % LEGACY_POKEMON.length];
+  return (legacy <= 151 ? legacy : (hash >>> 0) % 151 + 1) - 1;
 }
 function projectIcon(name, size) {
   return image(`mods/pokedex-agents/pokemon/${POKEMON[projectPet(name)]}.png`).w(size).h(size).flex_none();
@@ -118,11 +122,15 @@ function petScene(a) {
   return div().id(`pet-${a.address}`).relative().size(SCENE).flex_none()
     .flex().items_center().justify_center()
     .bg(INK.wash).border(1.5).border_color(INK.line).rounded(3).cursor_pointer()
-    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Change this project's Pokémon`)
+    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to change partner; right-click to open the collection`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
-      const steps = shared("retro-pokemon.steps") ?? {};
-      setShared("retro-pokemon.steps", { ...steps, [a.space_name]: (steps[a.space_name] ?? 0) + 1 });
+      const partners = shared("pokedex.partners") ?? {};
+      setShared("pokedex.partners", { ...partners, [a.space_name]: POKEMON[projectPet(a.space_name)] % 151 + 1 });
+    })
+    .on_mouse_down("right", (_e, cx) => {
+      cx.stop_propagation();
+      openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { pokemon: POKEMON[projectPet(a.space_name)] } });
     })
     .child(div().absolute().bottom(0).left(0).w_full().h(7).bg(INK.line))
     .child(pet)
@@ -156,6 +164,21 @@ export default class Agents extends View {
     const listed = new Set(list.map((a) => a.address));
     for (const [k, c] of Object.entries(this.changed)) if (!listed.has(k) && now - c.at > 30 * 86400000) delete this.changed[k];
     localStorage.setItem("changed", JSON.stringify(this.changed));
+  }
+
+  // An agent that is open catches its project's current Pokemon: each address is handled once
+  // per start, so a Pokemon is caught when its agent opens (or is already open at start).
+  catchOpened(list) {
+    this.seen ??= new Set();
+    const caught = shared("pokedex.caught") ?? [];
+    const fresh = new Set();
+    for (const a of list) {
+      if (this.seen.has(a.address)) continue;
+      this.seen.add(a.address);
+      fresh.add(POKEMON[projectPet(a.space_name)]);
+    }
+    const add = [...fresh].filter((id) => !caught.includes(id));
+    if (add.length) setShared("pokedex.caught", [...caught, ...add].sort((x, y) => x - y));
   }
 
   // Keep offline pins until their terminal returns, and keep each pending until
@@ -214,6 +237,23 @@ export default class Agents extends View {
 
   peek(addr) {
     run("terminal.peek", { terminal: addr });
+  }
+
+  collectionButton(compact) {
+    const count = (shared("pokedex.caught") ?? []).length;
+    return h_flex().id("pokedex-collection-open").flex_none()
+      .h(compact ? 24 : 30).px(compact ? 4 : 9).gap(7).items_center()
+      .rounded(4).bg(compact ? HOUSING : LCD)
+      .text_color(compact ? CREAM : SCREEN).text_size(12).cursor_pointer()
+      .tooltip(`Caught ${count} / 151 \u00b7 Open Kanto Pokedex`)
+      .hover(el => el.bg(compact ? EDGE : "#c8dca6"))
+      .on_click(() => openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680 }))
+      .when(compact, el => el.child(div().font_family(PX).text_size(14).child("151")))
+      .when(!compact, el => el
+        .child(div().font_family(PX).text_size(16).child("KANTO DEX"))
+        .child(div().flex_1())
+        .child(div().font_semibold().child(`Caught ${count} / 151`))
+        .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)));
   }
 
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
@@ -295,6 +335,7 @@ export default class Agents extends View {
     const shown = focused()?.agent;
     const now = Date.now();
     this.track(list, now);
+    this.catchOpened(list);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
     const nested = new Set(collapsed ? [] : list.flatMap((a) => this.tree(all, a.address).map((s) => s.t.address)));
@@ -510,6 +551,7 @@ export default class Agents extends View {
           .border_b(2)
           .border_color(EDGE)
           .text_color(CREAM)
+          .gap(6)
           .when(collapsed, (el) => el.pl(0).pr(0).justify_center())
           .when(!collapsed, (el) => el.child(h_flex().gap(8).items_center()
             .child(div().size(14).rounded(7).border_2().border_color(CREAM).bg(CYAN).flex_none())
@@ -528,8 +570,10 @@ export default class Agents extends View {
               .on_click(() => openOverlay({ mod: "pokedex-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } }))
               .tooltip(`Sort agents: ${sort.label}`)
               .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
-          ),
+          )
+          .when(collapsed, el => el.child(this.collectionButton(true))),
       )
+      .when(!collapsed, el => el.child(div().mx(8).mt(7).child(this.collectionButton(false))))
       .when(list.length === 0 && !collapsed, (el) =>
         el.child(v_flex().mx(8).mt(8).p(10).gap(4).flex_none().bg(LCD).border(1.5).border_color(INK.line).rounded(4)
           .child(div().font_family(PX).text_size(16).line_height("16px").text_color(SCREEN).child("NO DATA"))

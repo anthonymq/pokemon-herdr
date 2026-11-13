@@ -23,7 +23,7 @@ Remote menus use the target machine's installed commands.
 
 Each agent card shows the project, program identity, task/title and live
 status. Click the card to focus its terminal. Click the Pokemon portrait to
-cycle that project's partner. Agent sorting, hover-button pinning, nested subagents,
+change that project's partner. Agent sorting, hover-button pinning, nested subagents,
 peek and keep behavior are inherited from the existing personal agent mod.
 
 Statuses are Herdr's reported **Working**, **Needs you**, **Done** and
@@ -33,6 +33,20 @@ report status. The layout does not add an agent-specific status adapter.
 
 Space selection, tab selection/reorder/rename, pane split/zoom/close,
 Files, Changes and existing keyboard bindings remain available.
+
+## Kanto collection
+
+Only the 151 original Pokemon (#001 to #151) are used. Every project gets a
+Gen 1 partner: projects that already had a Gen 1 partner keep it, later
+generation partners are remapped. Click a portrait to move to the next partner
+(Mew wraps to Bulbasaur). Right-click a portrait to open the collection on that Pokemon.
+
+The **KANTO DEX** button (**151** in the compact rail) opens a searchable
+All/Caught grid. A Pokemon is caught automatically when an agent in its project is opened;
+there is no catch button. Use the commands below to catch or release by hand. Progress is
+saved as `pokedex.caught` in your own Herdr `shared.json` and is never part of
+this repository. Commands for keybindings: `pokedex-collection.catch-<n>`,
+`release-<n>`, `show-all`, `show-caught`, `search-<text>`; numbers outside 1 to 151 are rejected.
 
 ## Compact mode
 
@@ -53,13 +67,13 @@ Personal files:
 
 - `layouts/pokedex.json` and its settings preview `layouts/pokedex.svg`
 - `mods/pokedex-console` for sensor, footer and status strip
-- `mods/pokedex-spaces`, `pokedex-agents`, `pokedex-tabs`, `pokedex-pane`
+- `mods/pokedex-spaces`, `pokedex-agents`, `pokedex-tabs`, `pokedex-pane`, `pokedex-collection`
 - `programs.json` for OMP/OMO launcher registration
 
 The original personal layout and shipped mods are preserved. Personal
 clones are not updated by Herdr upgrades; compare with upstream when native
 API changes require it. The original source licenses remain in each clone.
-The Pokemon sprites are inherited from the existing personal agent mod.
+The 151 Gen 1 sprites are local files in `mods/pokedex-agents/pokemon/`.
 
 Run a native check after editing each mod:
 

@@ -42,7 +42,9 @@ The window has no system title bar. On macOS the window buttons sit at 12, 16 px
 
 A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: its parent carries that news. A parent sorts by its most urgent sub-agent.
 
-**Pokemon per project.** Every agent in a space shares one Pokemon, chosen by hashing the space's name (FNV-1a) into a list of 40 Pokedex numbers. The same project name always gets the same Pokemon. Clicking a scene (tooltip "No. 025 · Change this project's Pokemon") steps that project to the next Pokemon in the list, wrapping around. Every Herdr mod shares the step count, and it's keyed by space name.
+**Pokemon per project.** Only Gen 1 (#001 to #151) is used. A project's partner is `shared("pokedex.partners")[spaceName]` if set. Otherwise it migrates from the older 40-entry pool: FNV-1a of the space name plus its old step count picks a legacy id; ids up to 151 are kept and later ones become `hash % 151 + 1`. Clicking a scene (tooltip "No. 025 · Click to change partner; right-click to log a catch") moves to the next id, #151 wrapping to #001. Right-click opens the collection on that Pokemon.
+
+**Kanto collection.** The `KANTO DEX` button ("151" in the compact rail) shows `Caught N / 151` and opens `pokedex-collection` as an 820 x 680 dialog: title, progress bar, search by name or number, All and Caught filters, and a grid of cards (#id, 48 px sprite, name; caught cards are filled with a check mark). Cards are not clickable and there is no catch button. Catches happen when an agent opens in a project (its partner is added once per agent address per start), or by the commands below; stored as sorted unique ids in `shared("pokedex.caught")`. The mod's `nextCommand()` accepts `catch-<n>`, `release-<n>`, `show-all`, `show-caught`, `search-<text>`, `focus`; ids outside 1 to 151 are refused with a message and change nothing. Commands reach only an open copy.
 
 **Agents list.**
 - Clicking a card focuses its pane. Clicking a sub-agent strip focuses it if it has a pane, and otherwise peeks at it.
@@ -82,12 +84,13 @@ A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: i
       - `panel` column (hidden, 368 px, 280 to 900) holding `panel-body`, a `stack` (active `files`) of `files` and `changes` blocks using Herdr's shipped mods
     - `status` block, 30 px, `pokedex-console` with `{ role: "status" }`
 - **`layouts/pokedex.svg`.** The settings preview.
-- **Five mods.** All have `place: "none"`:
+- **Six mods.** All have `place: "none"`:
   - `pokedex-console` draws three roles from `props().role`: `brand`, `footer` and `status` (it defaults to brand). It reads `agents()`, `spaces()` and `focused()`, and runs `app.palette` and `app.settings {section: "look"}`. It measures its own width with `on_size_change` and goes compact under 160 px.
   - `pokedex-spaces` was cloned from Herdr's spaces mod (via `retropet-spaces`). It uses `spaces()`, `machines()`, `panes()`, `window()`, `layout()` and `shared("space.colors")`. It runs `exec("git", ...)` (`status --porcelain=v2 --branch`, `rev-parse`) locally or on the space's machine, and `hc machine ls/rm/add`. It uses `watchFolder` on local repos, `space.select`, `space.move`, `space.new` and `openOverlay` of the shipped `menu`. Its timers run at 250 ms (cheap change check) and 15 s (machines). It holds `fonts/` and `art/` (`monitor.svg`, `server.svg`, `dither.svg`).
-  - `pokedex-agents` was cloned from `retro-agents`. It uses `agents()`, `terminals()` (sub-agent trees via `parent`), `panes()`, `spaces()`, `focused()` and `setAgentOrder`. It runs `pane.focus`, `terminal.peek` and `terminal.pin`. Shared keys: `agents.sort`, `retro-pokemon.steps`, `sidebar.width` and `sidebar.collapsed`. It calls `layout.resize` on `sidebar` (76 px, or back to the saved width, default 300). It opens itself as a 200 x 140 popup with `{ sortMenu: true }`. Its localStorage keys are `changed` (state timestamps, pruned after 30 days) and `pins`. It holds `pokemon/` with 40 PNG sprites, inherited unchanged from the original personal setup: 1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387 (hashed in that order).
+  - `pokedex-agents` was cloned from `retro-agents`. It uses `agents()`, `terminals()` (sub-agent trees via `parent`), `panes()`, `spaces()`, `focused()` and `setAgentOrder`. It runs `pane.focus`, `terminal.peek` and `terminal.pin`. Shared keys: `agents.sort`, `pokedex.partners`, `pokedex.caught`, legacy `retro-pokemon.steps`, `sidebar.width` and `sidebar.collapsed`. It calls `layout.resize` on `sidebar` (76 px, or back to the saved width, default 300). It opens itself as a 200 x 140 popup with `{ sortMenu: true }`. Its localStorage keys are `changed` (state timestamps, pruned after 30 days) and `pins`. It holds `pokemon/` with 151 PNG sprites (1.png to 151.png, 96 x 96, from the PokeAPI sprites repository).
   - `pokedex-tabs` was cloned via `retropet-tabs`. It runs `tab.select`, `tab.move`, `tab.rename`, `tab.close`, `tab.prev` and `tab.next`, plus `layout.select/show/hide` on `panel-body` and `panel`, and the `window.*` commands. It opens the `new-menu` popup (250 x 512) and `menu`. It reads `shared("workspace.panels")` (default files and changes) and stores each space's panel in localStorage `panels`. It uses `ScrollHandle` and holds Windows window icons (`win-min`, `win-max`, `win-restore`, `win-close`).
   - `pokedex-pane` was cloned via `retropet-pane`. It reads `panes()` and `home()`, runs `pane.focus`, `pane.split`, `pane.zoom` and `pane.close`, and holds `split-right`, `split-down`, `zoom`, `unzoom` and `close` SVGs.
+  - `pokedex-collection` is new: `main.js`, `mod.json` (`focusable`, overlay 820 x 680) and `pokemon.js`, a static `POKEMON` array of 151 `{id, name}` records (names such as Nidoran F, Nidoran M, Farfetch'd, Mr. Mime). It uses `shared`, `setShared`, `props`, `closeOverlay`, `nextCommand`, `InputState`/`Input`, and reads sprites from `mods/pokedex-agents/pokemon/`. It makes no network calls.
 - **Fonts.** Three files in `mods/pokedex-spaces/fonts/`: `PxPlus_IBM_VGA_8x16.ttf`, plus `PixelatedMSSansSerif-Regular.ttf` and `-Bold.ttf`. Their notices are `LICENSE-PxPlus.txt` (CC BY-SA 4.0) and `LICENSE-MSSansSerif.txt` (lou 2017, FontStruct, CC BY-SA 3.0). Herdr loads them at start, and every mod uses them by family name.
 - **Shipped Herdr dependencies, not packaged:** `files`, `changes`, `menu`, `new-menu`, `worktree` (reached through the menus), Geist, and `workspace-chrome` icons (`spinner`, `chevron-down/right`, `pin`, `pin-off`, `clock`, `layers`, `check`, `plus`, `branch`, `monitor`, `server`). It also uses `mods/pane/close.svg`, `mods/files/file.svg` and `mods/changes/changes.svg`.
 - **`programs.json`.** Merge entries for `omp` (name "OMP", tile `#f3a9bd`, `run: ["omp"]`) and `omo` (name "OMO", tile `#71d5df`, `run: ["omo"]`). Both use `personal-icons/retro-agent.svg` with `tint: false`. Claude Code and Codex use Herdr's built-in entries. Agent identity is generic: a card names the program from Herdr's table, and falls back to the agent's reported `app` when the table doesn't know it.
@@ -97,11 +100,11 @@ A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: i
 
 ## Watch out
 
-- Herdr's shipped mods are read-only. Build the five mods under these new names, and don't edit `spaces`, `agents`, `tabs` or `pane` in place.
+- Herdr's shipped mods are read-only. Build the six mods under these new names, and don't edit `spaces`, `agents`, `tabs` or `pane` in place.
 - Every mod decides compact mode from the `sidebar` node's `size.px` (under 160) in `layout()`, not from a flag. The console uses its own measured width instead. Keep the node id `sidebar`, plus `panel`, `panel-body`, `files` and `changes`, which the tabs mod drives by id.
 - Fonts are referenced by family name and loaded from `pokedex-spaces/fonts`. Keep that folder, or the pixel type falls back. The comment in `pokedex-pane` mentions `retropet-spaces/fonts`, which is stale.
-- The shared step key is still named `retro-pokemon.steps`, and it's keyed by space name. Renaming a space can therefore change its Pokemon.
-- The hashed list isn't sorted (it ends 393, 390, 387). Keep that order, or every project's Pokemon changes.
+- Partner choices are keyed by space name, so renaming a space can change its Pokemon. Caught progress is personal state in `shared.json`; never publish it.
+- Keep the legacy 40-id migration list unchanged, or existing projects get different partners.
 - `herdr-app check` covers the first render only. The sort popup, hover pins, sub-agent rows, folded groups and machine states need a look in the running app.
 - Agents inside tmux, and older agents, may not report status and won't appear as cards.
 - Don't put Pokedex or POKEDEX with an accented e in user-facing text. The agents header does read "POKÉMON / AGENTS".
@@ -112,11 +115,12 @@ A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: i
 
 ## Done when
 
-- `herdr-app check` passes for `pokedex-console`, `pokedex-spaces`, `pokedex-agents`, `pokedex-tabs` and `pokedex-pane`.
+- `herdr-app check` passes for `pokedex-console`, `pokedex-spaces`, `pokedex-agents`, `pokedex-tabs`, `pokedex-pane` and `pokedex-collection`.
+- Every sprite is Gen 1; `herdr-app do mod.open --name pokedex-collection` then `pokedex-collection.catch-25` twice and `catch-151` saves `[25,151]`; `release-25`, `release-151` empty it; `catch-0` and `catch-152` change nothing; the list survives an app restart.
 - `herdr-app do layout.switch --name pokedex` shows the red sidebar with POKEDEX, PROJECTS / SPACES, POKEMON cards and a footer with only Settings.
 - Clicking the sensor opens the palette, and Settings opens Look settings.
 - An agent that reports working, blocked, done and idle shows each animation, word and mark, and the status strip counts change to match.
-- Clicking a Pokemon scene changes the sprite for every agent in that space, and the same space name gets the same Pokemon after a restart.
+- Clicking a Pokemon scene changes the sprite for every agent in that space, and a project keeps its partner after a restart.
 - Priority and Grouped sorts both work. A pin moves a card under PINNED, and sub-agents appear in a tree under their parent.
 - Dragging the sidebar under 160 px gives numbered rail cells, and "»" brings back the previous width.
 - FILES and CHANGES open the side panel, and switching spaces restores each space's choice.
