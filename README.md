@@ -20,9 +20,10 @@ The footer holds the trainer strip (level, streak, badges) and Settings.
 ## Contents
 
 - `layouts/pokedex.json` and its settings preview.
-- Eight custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
+- Nine custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
   `pokedex-tabs`, `pokedex-pane`, `pokedex-collection`, `pokedex-trainer`
-  and `pokedex-encounter`.
+  `pokedex-encounter` and `pokedex-toast` (wild encounters pop up as a
+  flashing battle card over the layout).
 - The game rules in `game.js` (XP, evolutions, streak, shinies, encounters,
   badges). Herdr mods can't import across folders, so each mod that plays
   carries an identical copy.
@@ -68,7 +69,7 @@ Validate the mods:
 
 ```sh
 (
-  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection pokedex-trainer pokedex-encounter; do
+  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection pokedex-trainer pokedex-encounter pokedex-toast; do
     herdr-app check "$HOME/.config/herdr-app/mods/$mod" || exit 1
   done
 ) && herdr-app do layout.switch --name pokedex

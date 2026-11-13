@@ -121,7 +121,7 @@ export function finishTask(project, partnerId, ms) {
     g.evolutions += 1;
     setShared(PARTNERS, { ...(shared(PARTNERS) ?? {}), [project]: id });
     addCaught(g, [id]);
-    notify({ title: `What? ${nameOf(partnerId)} is evolving!`, body: `${project}'s partner became ${nameOf(id)} (Lv ${after}).`, level: "success" });
+    notify({ title: `What? ${nameOf(partnerId)} is evolving!`, body: `${project}'s partner became ${nameOf(id)} (Lv ${after}).`, level: "success", icon: `mods/pokedex-agents/pokemon/${id}.png` });
   } else if (after > before) {
     notify({ title: `${nameOf(partnerId)} grew to Lv ${after}!`, body: project, level: "info" });
   }
@@ -130,7 +130,7 @@ export function finishTask(project, partnerId, ms) {
     let wild = 1 + Math.floor(Math.random() * 151);
     if (LEGENDARY.includes(wild)) wild = 1 + Math.floor(Math.random() * 151); // legendaries need a second roll
     g.encounter = { id: wild, at: Date.now(), balls: BALLS };
-    notify({ title: `A wild ${nameOf(wild)} appeared!`, body: "Click to throw a Poke Ball.", level: "info", timeout: ENCOUNTER_MS, action: { name: "mod.open", args: { name: "pokedex-encounter" } } });
+    notify({ title: `A wild ${nameOf(wild)} appeared!`, body: "Click to throw a Poke Ball.", level: "info", timeout: ENCOUNTER_MS, icon: `mods/pokedex-agents/pokemon/${wild}.png`, action: { name: "mod.open", args: { name: "pokedex-encounter" } } });
   }
   save(g);
 }
