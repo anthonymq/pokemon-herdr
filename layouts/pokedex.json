@@ -12,7 +12,8 @@
     "accent": "#71d5df",
     "working": "#71d5df",
     "blocked": "#ffd07a",
-    "done": "#b9dc92"
+    "done": "#8ee06a",
+    "idle": "#6f8577"
   },
   "terminal_padding": [14, 12],
   "divider": { "width": 3, "color": "#641b2b" },
@@ -79,7 +80,23 @@
           "padding": 10,
           "gap": 10,
           "background": "#812535",
+          "floating": [
+            { "id": "alerts", "content": { "mod": "pokedex-alerts" }, "edge": "right", "align": "center", "peek": 40 }
+          ],
           "children": [
+            {
+              "id": "view",
+              "type": "stack",
+              "active": "main",
+              "children": [
+            {
+              "id": "focus",
+              "type": "block",
+              "radius": 8,
+              "border": { "width": 2, "color": "#71d5df" },
+              "background": "background",
+              "content": { "agent": "focused" }
+            },
             {
               "id": "main",
               "type": "block",
@@ -100,6 +117,8 @@
                   "lone": true
                 }
               }
+            }
+              ]
             },
             {
               "id": "panel",

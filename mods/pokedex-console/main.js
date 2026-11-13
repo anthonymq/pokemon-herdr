@@ -1,6 +1,6 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, props, run, spaces, shared, openOverlay } from "herdr";
+import { agents, focused, props, run, spaces, shared, openOverlay, exec, theme } from "herdr";
 import { game, trainerLevel, liveStreak, BADGES, CAUGHT } from "./game.js";
 
 const C = {
@@ -11,7 +11,34 @@ const C = {
 const PIXEL = "PxPlus IBM VGA 8x16";
 
 export default class PokedexConsole extends View {
-  init() { this.width = 300; }
+  init(_props, cx) {
+    this.width = 300;
+    this.git = null;
+    if (props()?.role === "status") {
+      cx.timer.every(5000, (cx) => this.refreshGit(cx));
+      this.refreshGit(cx);
+    }
+  }
+
+  // Ahead/behind and uncommitted count for the focused terminal's folder.
+  refreshGit(cx) {
+    const cwd = focused()?.cwd;
+    const machine = spaces().find(s => s.active)?.machine ?? undefined;
+    if (!cwd) { this.git = null; cx.notify(); return; }
+    cx.spawn(async (cx) => {
+      try {
+        const r = await exec("git", ["status", "--porcelain=v2", "--branch"], { cwd, on: machine, timeout: 4000 });
+        if (r.code !== 0) { this.git = null; cx.notify(); return; }
+        const ab = r.stdout.match(/^# branch\.ab \+(\d+) -(\d+)/m);
+        const dirty = r.stdout.split("\n").filter(l => l && !l.startsWith("#")).length;
+        this.git = { ahead: ab ? +ab[1] : 0, behind: ab ? +ab[2] : 0, dirty };
+      } catch (e) {
+        console.log("pokedex status git:", String(e));
+        this.git = null;
+      }
+      cx.notify();
+    });
+  }
 
   button(id, label, action, width = 64) {
     return div().id(id).w(width).h(26).flex_none().flex().items_center()
@@ -91,10 +118,16 @@ export default class PokedexConsole extends View {
     const all = agents();
     const space = spaces().find(s => s.active);
     const current = all.find(a => a.address === focused()?.terminal);
+    const t = theme();
     const counts = [
-      ["working", "Working", C.cyan], ["blocked", "Needs you", "#ffd07a"],
-      ["done", "Done", C.lcd], ["idle", "Idle", "#b6c6b8"],
-    ].map(([status, label, color]) => ({ label, color, count: all.filter(a => a.status === status).length }));
+      ["blocked", "Needs you", t.blocked], ["done", "Done", t.done],
+      ["working", "Working", t.working], ["idle", "Idle", t.idle],
+    ].map(([status, label, color]) => {
+      const list = all.filter(a => a.status === status);
+      return { status, label, color, count: list.length, first: list[0] };
+    });
+    const branch = spaces().find(s => s.active)?.branch;
+    const g = this.git;
     return h_flex().size_full().px(14).gap(14).items_center().min_w(0)
       .bg(C.screen).text_size(11).text_color("#b6c6b8")
       .child(div().size(6).rounded(3).bg(C.cyan).flex_none())
@@ -102,11 +135,19 @@ export default class PokedexConsole extends View {
       .when(Boolean(current), el => el.child(div().max_w(160).truncate()
         .text_color(C.cream).child(current.program?.name ?? current.app)))
       .child(div().flex_1())
+      .when(Boolean(branch), el => el.child(h_flex().flex_none().gap(6).items_center()
+        .child(div().max_w(200).truncate().text_color(C.cyan).child(`\u2387 ${branch}`))
+        .when(Boolean(g?.ahead), el => el.child(div().text_color(t.done).child(`\u2191${g.ahead}`)))
+        .when(Boolean(g?.behind), el => el.child(div().text_color(t.blocked).child(`\u2193${g.behind}`)))
+        .when(Boolean(g?.dirty), el => el.child(div().text_color(C.cream).child(`\u25cf${g.dirty}`)))))
+      .child(div().flex_1())
       .children(counts.filter(c => c.count > 0).map(c =>
-        h_flex().flex_none().gap(5).items_center()
-          .child(div().size(5).rounded(3).bg(c.color))
-          .child(div().child(`${c.label} ${c.count}`))))
-      .child(div().text_color("#819788").flex_none().child("HERDR / FIELD SYSTEM"));
+        h_flex().id(`status-${c.status}`).flex_none().gap(5).items_center().px(5).rounded(3)
+          .cursor_pointer().hover(s => s.bg("#ffffff14"))
+          .tooltip(`Jump to ${c.first.program?.name ?? c.first.app ?? "agent"}`)
+          .on_click(() => run("agent.focus", { terminal: c.first.address }))
+          .child(div().size(6).rounded(3).bg(c.color))
+          .child(div().text_color(c.color).child(`${c.label} ${c.count}`))));
   }
 
   render() {

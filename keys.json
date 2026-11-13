@@ -3,6 +3,10 @@
     "cmd-p": "mod.open:pokedex-picker",
     "cmd-s": "mod.open:pokedex-picker",
     "ctrl-a ctrl-a": "mod.open:pokedex-picker",
-    "ctrl-a a": "mod.open:pokedex-picker"
+    "ctrl-a a": "mod.open:pokedex-picker",
+    "cmd-e": "pokedex-alerts.focus",
+    "cmd-j": "pokedex-alerts.next-needy",
+    "cmd-shift-j": "pokedex-alerts.peek",
+    "cmd-shift-k": "pokedex-alerts.pin"
   }
 }

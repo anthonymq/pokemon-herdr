@@ -73,8 +73,10 @@ Codex use Herdr's built-in entries; Codex retains `--no-daemon`.
 Personal settings are not included. `keys.json` holds only a `layout:pokedex`
 section that opens `pokedex-picker` (Herdr's tab and space picker, cloned to show
 each space's Pokemon) on cmd-P, cmd-S and ctrl-A A while the pokedex layout is
-shown; merge that section into your own `keys.json` and change the keys to your
-picker keys if they differ.
+shown, plus the alert drawer's keys: cmd-E flips the work area to one full-size
+agent and back, cmd-J jumps to the agent that most needs you, cmd-shift-J peeks
+at it and cmd-shift-K pins the focused agent. Merge that section into your own
+`keys.json` and change the keys to your picker keys if they differ.
 
 The Projects mod runs `git` and `hc` and watches Git metadata outside its own
 folder. For remote spaces, those commands run on the space's machine through

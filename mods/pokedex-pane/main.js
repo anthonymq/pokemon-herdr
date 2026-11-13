@@ -79,7 +79,9 @@ export default class Pane extends View {
       .child(div().size(6).flex_none().rounded(3).bg(p.focused ? CYAN : TRIM))
       .child(div().flex_none().truncate().max_w(260).px(4).bg(SCREEN).font_family(PX).text_size(16).line_height("16px")
         .text_color(LCD).child(name.toUpperCase()))
-      .child(div().flex_1().truncate().font_family(PXS).text_size(11).text_color(CREAM).child(folder(p.cwd)))
+      .child(div().flex_1().min_w(0).truncate().font_family(PXS).text_size(11).text_color(CREAM).child(folder(p.cwd)))
+      .when(Boolean(p.branch), el => el.child(div().flex_none().max_w(180).truncate().px(4).h(15).flex().items_center()
+        .bg(RAISED).font_family(PXS).text_size(11).text_color(CYAN).child(`\u2387 ${p.branch}`)))
       .when(Boolean(st), el => el.child(div().flex_none().px(4).h(15).flex().items_center().border_1().border_color(t[st] ?? LCD).bg(SCREEN)
         .font_family(PXS).font_weight(700).text_size(11).text_color(t[st] ?? LCD).child(BADGE[st] ?? st.toUpperCase())))
       .when(this.hovered, el => el
