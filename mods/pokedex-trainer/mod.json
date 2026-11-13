@@ -1,0 +1,9 @@
+{
+  "place": "none",
+  "title": "Trainer card",
+  "overlay": {
+    "kind": "dialog",
+    "width": 560,
+    "height": 520
+  }
+}

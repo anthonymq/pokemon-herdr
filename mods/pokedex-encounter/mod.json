@@ -1,0 +1,9 @@
+{
+  "place": "none",
+  "title": "Wild encounter",
+  "overlay": {
+    "kind": "dialog",
+    "width": 340,
+    "height": 340
+  }
+}

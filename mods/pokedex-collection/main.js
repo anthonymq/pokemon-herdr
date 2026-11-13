@@ -2,6 +2,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { shared, setShared, props, closeOverlay, nextCommand } from "herdr";
 import { POKEMON } from "./pokemon.js";
+import { game } from "./game.js";
 
 const CAUGHT = "pokedex.caught";
 const C = {
@@ -97,14 +98,16 @@ export default class PokedexCollection extends View {
       .hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
   }
 
-  card(p, caught) {
+  card(p, caught, shiny) {
     const selected = caught.includes(p.id);
+    const gold = shiny.includes(p.id);
     return v_flex().id(`pokemon-${p.id}`).flex_1().min_w(0).h(126)
       .p(8).gap(3).items_center().rounded(5).border(1)
-      .border_color(selected ? C.cyan : C.border)
+      .border_color(gold ? "#e8c35a" : selected ? C.cyan : C.border).when(gold, el => el.border(2))
       .bg(selected ? C.lcd : C.panel).text_color(selected ? C.ink : C.cream)
       .child(h_flex().w_full().h(12).justify_between().items_center()
         .child(div().text_size(10).child(`#${String(p.id).padStart(3, "0")}`))
+        .when(gold, el => el.child(div().text_size(10).font_bold().text_color("#a07c12").child("\u2726 SHINY")))
         .when(selected, el => el.child(svg("mods/workspace-chrome/check.svg").size(12))))
       .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(48).flex_none())
       .child(h_flex().w_full().h(17).justify_center().items_center()
@@ -113,13 +116,14 @@ export default class PokedexCollection extends View {
 
   render() {
     const caught = this.caught();
+    const shiny = game().shiny;
     const matches = this.visible();
     const columns = Math.max(1, Math.min(5, Math.floor((this.width - 24) / 136)));
     const rows = [];
     for (let i = 0; i < matches.length; i += columns) {
       const cells = matches.slice(i, i + columns);
       rows.push(h_flex().h(126).flex_none().gap(8)
-        .children(cells.map(p => this.card(p, caught)))
+        .children(cells.map(p => this.card(p, caught, shiny)))
         .children(Array.from({ length: columns - cells.length }, () => div().flex_1().min_w(0))));
     }
 

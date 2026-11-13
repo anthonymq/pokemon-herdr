@@ -4,6 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
+import { game, progress, finishTask, recordCatches } from "./game.js";
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
 const HOUSING = "#9b293a"; // the body
@@ -19,7 +20,7 @@ const PX = "PxPlus IBM VGA 8x16"; // the pixel heading font, loaded from pokedex
 // At zoom 1: the scene a Pokémon stands in, its sprite (96 px art at half size stays crisp), the card around it.
 const SCENE = 58;
 const SPRITE = 48;
-const CARD = 73; // the scene, 6 px of padding and a 1.5 px border
+const CARD = 88; // the scene and level bar, 6 px of padding and a 1.5 px border
 const STATUS_WORD = { working: "WORKING", blocked: "NEEDS YOU", done: "DONE", idle: "IDLE" };
 
 function find(node, id) {
@@ -155,7 +156,10 @@ export default class Agents extends View {
     let dirty = false;
     for (const a of list) {
       const s = a.status === "done" ? "idle" : a.status;
-      if (this.changed[a.address]?.s === s) continue;
+      const prev = this.changed[a.address];
+      if (prev?.s === s) continue;
+      // A working agent going quiet finished a task: its project's partner earns XP.
+      if (prev?.s === "working" && s === "idle") finishTask(a.space_name, POKEMON[projectPet(a.space_name)], now - prev.at);
       this.changed[a.address] = { s, at: now };
       dirty = true;
     }
@@ -170,15 +174,13 @@ export default class Agents extends View {
   // per start, so a Pokemon is caught when its agent opens (or is already open at start).
   catchOpened(list) {
     this.seen ??= new Set();
-    const caught = shared("pokedex.caught") ?? [];
     const fresh = new Set();
     for (const a of list) {
       if (this.seen.has(a.address)) continue;
       this.seen.add(a.address);
       fresh.add(POKEMON[projectPet(a.space_name)]);
     }
-    const add = [...fresh].filter((id) => !caught.includes(id));
-    if (add.length) setShared("pokedex.caught", [...caught, ...add].sort((x, y) => x - y));
+    if (fresh.size) recordCatches([...fresh]);
   }
 
   // Keep offline pins until their terminal returns, and keep each pending until
@@ -254,6 +256,15 @@ export default class Agents extends View {
         .child(div().flex_1())
         .child(div().font_semibold().child(`Caught ${count} / 151`))
         .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)));
+  }
+
+  // The partner's level and its XP toward the next one, LCD style.
+  levelBar(project) {
+    const { level, into } = progress(game().xp[project]);
+    return h_flex().px(3).gap(5).items_center()
+      .child(div().flex_none().font_family(PX).text_size(12).line_height("12px").text_color(SCREEN).child(`Lv${level}`))
+      .child(div().flex_1().h(4).rounded(2).bg(INK.wash).border(1).border_color(INK.line)
+        .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, el => el.w(`${Math.round(into * 100)}%`))));
   }
 
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
@@ -485,7 +496,8 @@ export default class Agents extends View {
             .when(Boolean(machine), el => el.child(div().flex_none().text_color(INK.dim).child(machine)))
             .child(div().flex_1())
             .when(Boolean(when), el => el.child(div().flex_none().text_color(INK.dim).child(duration(now - when))))
-            .when(subs.length > 0, el => el.child(fold(a, subs)))));
+            .when(subs.length > 0, el => el.child(fold(a, subs))))
+          .child(this.levelBar(a.space_name)));
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a

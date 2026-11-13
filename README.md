@@ -2,7 +2,9 @@
 
 A Pokedex-themed native coding workspace for [Herdr](https://herdr.dev):
 red device housing, a blue sensor, green LCD project navigation and Pokémon
-agent cards around your terminals.
+agent cards around your terminals. Partners level up and evolve as your
+agents finish tasks, wild Pokémon appear, and a trainer card tracks eight
+Kanto badges and a daily streak.
 
 ![Pokedex layout](preview.png)
 
@@ -13,13 +15,32 @@ Build it from an empty folder using [RECIPE.md](RECIPE.md).
 
 The layout is named **pokedex**. It handles Herdr's generic agent model,
 including OMP, OMO, Claude Code, Codex and other reporting agents.
-The footer contains only Settings.
+The footer holds the trainer strip (level, streak, badges) and Settings.
 
 ## Contents
 
 - `layouts/pokedex.json` and its settings preview.
-- Six custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
-  `pokedex-tabs`, `pokedex-pane` and `pokedex-collection`.
+- Eight custom mods: `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
+  `pokedex-tabs`, `pokedex-pane`, `pokedex-collection`, `pokedex-trainer`
+  and `pokedex-encounter`.
+- The game rules in `game.js` (XP, evolutions, streak, shinies, encounters,
+  badges). Herdr mods can't import across folders, so each mod that plays
+  carries an identical copy.
+
+## Gamification
+
+- Each finished agent task gives its project's partner 25 XP (+25 over 10
+  minutes). Levels follow level³ XP; partners evolve at their Gen 1 levels
+  (stone/trade evolutions at 30).
+- 15% of finished tasks spawn a wild Pokémon toast; click it, throw up to
+  three Poké Balls.
+- A daily streak counts days with a finished task; at 7 and 30 days new
+  catches can be shiny.
+- Badges: Boulder (10 caught), Cascade (50 tasks), Thunder (an evolution),
+  Rainbow (3-day streak), Soul (75 caught), Marsh (500 tasks), Volcano
+  (30-day streak), Earth (all 151).
+- Click the footer strip for the trainer card. Progress is stored in your
+  own `shared.json` and counts only while Herdr is open.
 - 151 Gen 1 Pokémon sprites and names, pixel fonts with their license notices, and native icons.
 - `programs.json` with OMP/OMO launcher entries and their personal icon.
 
@@ -47,7 +68,7 @@ Validate the mods:
 
 ```sh
 (
-  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection; do
+  for mod in pokedex-console pokedex-spaces pokedex-agents pokedex-tabs pokedex-pane pokedex-collection pokedex-trainer pokedex-encounter; do
     herdr-app check "$HOME/.config/herdr-app/mods/$mod" || exit 1
   done
 ) && herdr-app do layout.switch --name pokedex

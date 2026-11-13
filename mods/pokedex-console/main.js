@@ -1,6 +1,7 @@
 import { View, div } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, props, run, spaces } from "herdr";
+import { agents, focused, props, run, spaces, shared, openOverlay } from "herdr";
+import { game, trainerLevel, liveStreak, BADGES, CAUGHT } from "./game.js";
 
 const C = {
   housing: "#9b293a", raised: "#bd3c4c", seam: "#641b2b",
@@ -58,11 +59,32 @@ export default class PokedexConsole extends View {
           .rounded(2).bg(C.seam)))));
   }
 
+  // The trainer strip: level, streak and badge pips; it opens the trainer card.
+  trainer(compact) {
+    const g = game();
+    const streak = liveStreak(g);
+    return h_flex().id("pokedex-trainer-open").flex_1().min_w(0).h(26).px(8).gap(7).items_center()
+      .rounded(4).bg(C.lcd).text_color(C.ink).text_size(11).cursor_pointer()
+      .tooltip(`Trainer Lv ${trainerLevel(g)} \u00b7 ${(shared(CAUGHT) ?? []).length}/151 caught \u00b7 ${g.tasks} tasks \u00b7 open trainer card`)
+      .hover(s => s.bg("#c8dca6"))
+      .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
+      .on_click(() => openOverlay({ mod: "pokedex-trainer", kind: "dialog", width: 560, height: 520 }))
+      .child(div().flex_none().font_family(PIXEL).text_size(14).child(`TR${trainerLevel(g)}`))
+      .when(!compact, el => el
+        .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(`\u2668${streak}`))
+        .child(div().flex_1())
+        .children(BADGES.map(b => div().size(7).flex_none().rounded(4)
+          .bg(g.badges.includes(b.id) ? b.color : C.ink + "33"))));
+  }
+
   footer(compact) {
-    return v_flex().size_full().px(compact ? 8 : 14).py(10)
+    return h_flex().size_full().px(compact ? 8 : 14).py(10).gap(8).items_center()
       .bg(C.housing).border_t(2).border_color(C.seam)
-      .child(this.button("pokedex-settings", compact ? "⚙" : "Settings",
-        () => run("app.settings", { section: "look" }), compact ? 40 : 88));
+      .when(compact, el => el.child(this.trainer(true)))
+      .when(!compact, el => el
+        .child(this.trainer(false))
+        .child(this.button("pokedex-settings", "Settings",
+          () => run("app.settings", { section: "look" }), 72)));
   }
 
   status() {
