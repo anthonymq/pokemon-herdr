@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings } from "herdr";
 import { game, progress, finishTask, recordCatches } from "./game.js";
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
@@ -18,10 +18,16 @@ const INK = { soft: SCREEN + "b3", dim: SCREEN + "80", line: SCREEN + "59", wash
 const LABEL = { soft: CREAM + "b3", line: CREAM + "66" };
 const PX = "PxPlus IBM VGA 8x16"; // the pixel heading font, loaded from pokedex-spaces/fonts
 // At zoom 1: the scene a Pokémon stands in, its sprite (96 px art at half size stays crisp), the card around it.
-const SCENE = 46;
-const SPRITE = 40;
-const CARD = 62; // name, task, status and a 3 px XP strip; 5 px of padding and a 1.5 px border
+const SCENE = 48;
+const SPRITE = 48;
+const CARD = 62; // the shortest card; one with a task line grows to fit, so its border is never covered
 const STATUS_WORD = { working: "WORKING", blocked: "NEEDS YOU", done: "DONE", idle: "IDLE" };
+const TILE = 84; // the narrowest a square tile gets before the grid drops a column
+const VIEWS = [
+  { id: "tiles", label: "Tiles", icon: "layers" },
+  { id: "cards", label: "Cards with sub-agents", icon: "layers" },
+];
+const viewOf = () => (shared("agents.view") === "cards" ? "cards" : "tiles");
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -132,7 +138,6 @@ function petScene(a) {
       cx.stop_propagation();
       openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { pokemon: POKEMON[projectPet(a.space_name)] } });
     })
-    .child(div().absolute().bottom(0).left(0).w_full().h(7).bg(INK.line))
     .child(pet)
     .when(Boolean(mark), el => el.child(div().absolute().top(1).right(4).text_size(12).font_bold().text_color(a.status === "blocked" ? HOUSING : SCREEN).child(mark)));
 }
@@ -233,7 +238,23 @@ export default class Agents extends View {
         })
         .child(svg(`mods/workspace-chrome/${s.icon}.svg`).size(14).flex_none().text_color(t.muted))
         .child(div().flex_1().child(s.label))
-        .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
+        .when(s.id === on, (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))))
+      .child(div().px(8).pt(8).pb(6).text_size(11).text_color(t.dim).child("View"))
+      .children(VIEWS.map((v) => h_flex()
+        .id(`view-${v.id}`)
+        .h(31)
+        .px(8)
+        .gap(9)
+        .rounded(7)
+        .items_center()
+        .text_color(t.foreground)
+        .hover((el) => el.bg(t.hover))
+        .on_click(() => {
+          setShared("agents.view", v.id);
+          closeOverlay(props().overlay);
+        })
+        .child(div().flex_1().child(v.label))
+        .when(v.id === viewOf(), (el) => el.child(svg("mods/workspace-chrome/check.svg").size(14).flex_none().text_color(t.foreground)))));
   }
 
   peek(addr) {
@@ -461,7 +482,7 @@ export default class Agents extends View {
       return h_flex()
         .id(`ag-${a.address}`)
         .p(5)
-        .h(CARD)
+        .min_h(CARD)
         .flex_none()
         .gap(8)
         .items_center()
@@ -497,6 +518,82 @@ export default class Agents extends View {
             .when(Boolean(when), el => el.child(div().flex_none().text_color(INK.dim).child(duration(now - when))))
             .when(subs.length > 0, el => el.child(fold(a, subs))))
           .child(this.levelBar(a.space_name)));
+    };
+
+    // A square tile: status, Pokemon, project name and level. Details live in the tooltip;
+    // click focuses the agent, right-click chooses the project's partner.
+    const tile = (a) => {
+      const on = a.focused;
+      const subs = this.tree(all, a.address);
+      const when = this.since(a);
+      const program = programName(a);
+      const { level, into } = progress(game().xp[a.space_name]);
+      const tip = [a.space_name || label(a), detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
+        subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${level}`].filter(Boolean).join(" \u00b7 ");
+      const pet = div().relative().child(projectIcon(a.space_name, SPRITE));
+      if (a.status === "working") pet.loop("top", { from: 0, to: -3, period: 1000 });
+      if (a.status === "blocked") pet.loop("opacity", { from: 0.55, to: 1, period: 800 });
+      const pin = div().id(`pin-${a.address}`).flex_none().rounded(2).text_color(INK.dim).cursor_pointer()
+        .hover((s) => s.text_color(SCREEN))
+        .tooltip(a.pinned ? "Unpin" : "Pin to the top")
+        .on_click((_e, cx) => {
+          cx.stop_propagation();
+          run("terminal.pin", { terminal: a.address, pinned: !a.pinned });
+          this.hovered = null;
+          cx.notify();
+        })
+        .child(svg(`mods/workspace-chrome/${a.pinned ? "pin-off" : "pin"}.svg`).size(11));
+      return v_flex()
+        .id(`ag-${a.address}`)
+        .w(tileWidth)
+        .flex_none()
+        .px(4)
+        .pt(3)
+        .pb(4)
+        .gap(1)
+        .items_center()
+        .bg(LCD)
+        .border(1.5)
+        .border_color(on ? SCREEN : a.status === "blocked" ? HOUSING : INK.line)
+        .rounded(4)
+        .cursor_pointer()
+        .tooltip(tip)
+        .hover((s) => s.border_color(on ? SCREEN : INK.soft))
+        .on_hover((over, cx) => {
+          if (over) this.hovered = a.address;
+          else if (this.hovered === a.address) this.hovered = null;
+          cx.notify();
+        })
+        .on_click(() => run("pane.focus", { pane: a.pane }))
+        .on_mouse_down("right", (_e, cx) => {
+          cx.stop_propagation();
+          openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
+        })
+        .child(h_flex().w_full().h(14).items_center().justify_between()
+          .child(h_flex().gap(3).items_center()
+            .when(this.hovered === a.address || a.pinned, (el) => el.child(pin))
+            .when(subs.length > 0, (el) => el.child(div().text_size(9.5).font_bold().text_color(INK.soft).child(`+${subs.length}`))))
+          .child(this.status(a, true)))
+        .child(pet)
+        .child(h_flex().w_full().h(14).px(2).justify_center().items_center().rounded(2).when(on, (el) => el.bg(SCREEN))
+          .child(div().min_w(0).truncate().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : SCREEN).child(a.space_name || label(a))))
+        .child(h_flex().w_full().px(2).gap(3).items_center()
+          .child(div().flex_none().font_family(PX).text_size(10).line_height("10px").text_color(INK.soft).child(`Lv${level}`))
+          .child(div().flex_1().h(3).rounded(2).bg(INK.line)
+            .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, (el) => el.w(`${Math.round(into * 100)}%`)))));
+    };
+    // Every tile gets the same fixed width: flex shares let each tile's text nudge its column.
+    // The list keeps 8 px each side and 6 px for its scrollbar. The measured width includes the
+    // person's zoom, while sizes are written at zoom 1.
+    const inner = (this.width ?? 300) / (Number(settings().zoom) || 1) - 22;
+    const cols = Math.max(1, Math.floor((inner + 5) / (TILE + 5)));
+    const tileWidth = Math.floor((inner - 5 * (cols - 1)) / cols);
+    const grid = (members) => {
+      const out = [];
+      for (let i = 0; i < members.length; i += cols) {
+        out.push(h_flex().flex_none().gap(5).children(members.slice(i, i + cols).map(tile)));
+      }
+      return out;
     };
 
     // Groups in list order: spaces (grouped) or priority sections. Agents of a
@@ -541,11 +638,16 @@ export default class Agents extends View {
     };
     const rows = collapsed
       ? list.flatMap(withKids)
-      : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : g.members.flatMap(withKids))]);
+      : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : viewOf() === "tiles" ? grid(g.members) : g.members.flatMap(withKids))]);
 
     // The housing: a header strip like the spaces list's (the lens, the label, the sort button;
     // in the rail only the button), the cards, and in the rail the way back out.
     return v_flex()
+      .id("ag-root")
+      .on_size_change((size, cx) => {
+        this.width = size.width;
+        cx.notify();
+      })
       .size_full()
       .min_h(0)
       .bg(HOUSING)
@@ -578,7 +680,7 @@ export default class Agents extends View {
               .rounded(4)
               .cursor_pointer()
               .hover((s) => s.text_color(CYAN))
-              .on_click(() => openOverlay({ mod: "pokedex-agents", kind: "popup", width: 200, height: 140, props: { sortMenu: true } }))
+              .on_click(() => openOverlay({ mod: "pokedex-agents", kind: "popup", width: 200, height: 240, props: { sortMenu: true } }))
               .tooltip(`Sort agents: ${sort.label}`)
               .child(svg(`mods/workspace-chrome/${sort.icon}.svg`).size(14)),
           )
