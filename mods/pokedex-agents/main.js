@@ -3,8 +3,8 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings } from "herdr";
-import { game, progress, finishTask, recordCatches } from "./game.js";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec } from "herdr";
+import { game, progress, finishTask, finishSubTask, recordCatches, migrateProject, projectKey, projectLabel, PROJECTS } from "./game.js";
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
 const HOUSING = "#9b293a"; // the body
@@ -98,7 +98,7 @@ function duration(ms) {
 const LEGACY_POKEMON = [1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387];
 const POKEMON = Array.from({ length: 151 }, (_, i) => i + 1);
 function projectPet(name) {
-  const selected = shared("pokedex.partners")?.[name];
+  const selected = shared("pokedex.partners")?.[projectKey(name)];
   if (Number.isInteger(selected) && selected >= 1 && selected <= 151) return selected - 1;
   let hash = 2166136261;
   for (const c of name || "?") hash = Math.imul(hash ^ c.codePointAt(0), 16777619);
@@ -132,7 +132,7 @@ function petScene(a) {
     .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to choose a partner from your catches; right-click to open the collection`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
-      openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
+      openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
     })
     .on_mouse_down("right", (_e, cx) => {
       cx.stop_propagation();
@@ -154,6 +154,57 @@ export default class Agents extends View {
     cx.timer.every(30000, (cx) => cx.notify());
   }
 
+  // Each space's project key is the git repo root of its first terminal's live folder (machine-qualified
+  // when remote), so progress survives a renamed or recreated space. Not `space.folder`: that is where the
+  // space was created, and many spaces share it. Resolved once per space name; existing progress moves to
+  // the key. A space whose terminals report no folder yet is tried again on a later render.
+  resolveProjects(cx) {
+    this.resolving ??= new Set();
+    const known = shared(PROJECTS) ?? {};
+    const allPanes = panes();
+    for (const sp of spaces()) {
+      if (!sp.name || sp.name in known || this.resolving.has(sp.name)) continue;
+      const tabs = new Set(sp.tabs.map((tab) => tab.id));
+      const cwd = allPanes.find((p) => p.terminal && p.cwd && tabs.has(p.tab))?.cwd;
+      if (!cwd) continue;
+      this.resolving.add(sp.name);
+      cx.spawn(async () => {
+        let key = sp.name;
+        try {
+          // Outside a repo git exits non-zero and the space name stays the key.
+          const r = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on: sp.machine ?? undefined, timeout: 5000 });
+          const top = r.stdout.trim();
+          if (r.code === 0 && top) key = sp.machine ? `${sp.machine}:${top}` : top;
+        } catch (error) {
+          // git couldn't run (machine unreachable, timeout): leave the space unresolved and retry on a later render.
+          console.log(`pokedex-agents: project key for ${sp.name} not resolved: ${error}`);
+          this.resolving.delete(sp.name);
+          return;
+        }
+        migrateProject(sp.name, key);
+        setShared(PROJECTS, { ...(shared(PROJECTS) ?? {}), [sp.name]: key });
+        this.resolving.delete(sp.name);
+      });
+    }
+  }
+
+  // A sub-agent without its own pane that goes from working to idle or done earns its project 10 XP.
+  // Kept sub-agents are in agents() and earn through track() like any agent.
+  trackSubAgents(list, all) {
+    this.subPrev ??= {};
+    const listed = new Set(list.map((a) => a.address));
+    for (const a of list) {
+      for (const { t: k } of this.tree(all, a.address)) {
+        if (listed.has(k.address)) continue;
+        const prev = this.subPrev[k.address];
+        this.subPrev[k.address] = k.status;
+        if (prev === "working" && (k.status === "idle" || k.status === "done")) {
+          finishSubTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)]);
+        }
+      }
+    }
+  }
+
   // Stamps agents whose state changed. Done and idle count as one: looking at a
   // finished agent turns done into idle, and looking isn't the agent doing anything.
   track(list, now) {
@@ -163,7 +214,7 @@ export default class Agents extends View {
       const prev = this.changed[a.address];
       if (prev?.s === s) continue;
       // A working agent going quiet finished a task: its project's partner earns XP.
-      if (prev?.s === "working" && s === "idle") finishTask(a.space_name, POKEMON[projectPet(a.space_name)], now - prev.at);
+      if (prev?.s === "working" && s === "idle") finishTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at);
       this.changed[a.address] = { s, at: now };
       dirty = true;
     }
@@ -280,7 +331,7 @@ export default class Agents extends View {
 
   // The partner's XP toward its next level: a thin strip under the status line.
   levelBar(project) {
-    const { into } = progress(game().xp[project]);
+    const { into } = progress(game().xp[projectKey(project)]);
     return div().mx(3).h(3).flex_none().rounded(2).bg(INK.line)
       .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, el => el.w(`${Math.round(into * 100)}%`)));
   }
@@ -364,6 +415,8 @@ export default class Agents extends View {
     const shown = focused()?.agent;
     const now = Date.now();
     this.track(list, now);
+    this.resolveProjects(cx);
+    this.trackSubAgents(list, terminals());
     this.catchOpened(list);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
@@ -505,7 +558,7 @@ export default class Agents extends View {
             .child(div().flex_1().min_w(0).truncate().font_family(PX).text_size(16).line_height("16px").text_color(on ? LCD : SCREEN).child(name))
             .when(this.hovered === a.address, el => el.child(pin))
             .child(div().flex_none().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : INK.soft)
-              .child(`Lv${progress(game().xp[a.space_name]).level}`)))
+              .child(`Lv${progress(game().xp[projectKey(a.space_name)]).level}`)))
           .when(Boolean(task), el => el.child(div().px(3).truncate().text_size(11.5).text_color(INK.soft).child(task)))
           .child(h_flex().px(3).gap(5).items_center().text_size(10.5)
             .child(this.status(a, true))
@@ -527,7 +580,7 @@ export default class Agents extends View {
       const subs = this.tree(all, a.address);
       const when = this.since(a);
       const program = programName(a);
-      const { level, into } = progress(game().xp[a.space_name]);
+      const { level, into } = progress(game().xp[projectKey(a.space_name)]);
       const tip = [a.space_name || label(a), detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
         subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${level}`].filter(Boolean).join(" \u00b7 ");
       const pin = div().id(`pin-${a.address}`).flex_none().rounded(2).text_color(INK.dim).cursor_pointer()
@@ -565,7 +618,7 @@ export default class Agents extends View {
         .on_click(() => run("pane.focus", { pane: a.pane }))
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
-          openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
+          openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
         })
         // The sprite takes the top of the tile, its row and the status line's: drawn at 80 px in a 63 px
         // window that crops the art's empty margin. The tile keeps its size.

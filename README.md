@@ -26,13 +26,15 @@ The footer holds the trainer strip (level, streak, badges) and Settings.
   flashing battle card over the layout).
 - The game rules in `game.js` (XP, evolutions, streak, shinies, encounters,
   badges). Herdr mods can't import across folders, so each mod that plays
-  carries an identical copy.
+  carries an identical copy: edit `mods/pokedex-agents/game.js`, then run
+  `scripts/sync-game.sh` (`--check` verifies the copies match).
 
 ## Gamification
 
-- Each finished agent task gives its project's partner 25 XP (+25 over 10
-  minutes). Levels follow level³ XP; partners evolve at their Gen 1 levels
-  (stone/trade evolutions at 30).
+- Each finished agent turn gives its project's partner 10 XP plus 5 per
+  minute it ran (up to 100); finished sub-agents give 10. Level n needs
+  4·n² XP; partners evolve at their Gen 1 levels (stone/trade at 30).
+  Progress follows the project's git repo, so renaming a space keeps it.
 - 15% of finished tasks spawn a wild Pokémon toast; click it, throw up to
   three Poké Balls.
 - A daily streak counts days with a finished task; at 7 and 30 days new

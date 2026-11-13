@@ -3,7 +3,7 @@
   "title": "Trainer card",
   "overlay": {
     "kind": "dialog",
-    "width": 560,
-    "height": 520
+    "width": 600,
+    "height": 640
   }
 }

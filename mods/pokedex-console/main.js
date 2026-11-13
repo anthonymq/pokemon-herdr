@@ -68,7 +68,7 @@ export default class PokedexConsole extends View {
       .tooltip(`Trainer Lv ${trainerLevel(g)} \u00b7 ${(shared(CAUGHT) ?? []).length}/151 caught \u00b7 ${g.tasks} tasks \u00b7 open trainer card`)
       .hover(s => s.bg("#c8dca6"))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
-      .on_click(() => openOverlay({ mod: "pokedex-trainer", kind: "dialog", width: 560, height: 520 }))
+      .on_click(() => openOverlay({ mod: "pokedex-trainer", kind: "dialog", width: 600, height: 640 }))
       .child(div().flex_none().font_family(PIXEL).text_size(14).child(`TR${trainerLevel(g)}`))
       .when(!compact, el => el
         .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(`\u2668${streak}`))

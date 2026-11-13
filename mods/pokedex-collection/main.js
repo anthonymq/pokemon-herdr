@@ -21,6 +21,7 @@ export default class PokedexCollection extends View {
     // Opened from an agent's scene with { project, partner }: a partner picker over the caught Pokemon.
     this.project = props()?.project ?? null;
     this.partner = props()?.partner ?? null;
+    this.label = props()?.label ?? this.project;
     this.caughtOnly = Boolean(this.project);
     this.width = 820;
     this.error = "";
@@ -150,7 +151,7 @@ export default class PokedexCollection extends View {
       })
       .child(h_flex().h(34).flex_none().gap(10).items_center()
         .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23)
-          .child(this.project ? `CHOOSE PARTNER \u00b7 ${this.project.toUpperCase()}` : "KANTO POKEDEX"))
+          .child(this.project ? `CHOOSE PARTNER \u00b7 ${String(this.label).toUpperCase()}` : "KANTO POKEDEX"))
         .child(div().px(10).h(28).rounded(4).bg(C.lcd).text_color(C.ink)
           .text_size(13).font_semibold().flex().items_center().child(`Caught ${caught.length} / 151`))
         .when(Boolean(props()?.overlay), el => el.child(div().id("collection-close").size(28)
