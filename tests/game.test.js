@@ -157,5 +157,87 @@ describe("encounters", () => {
     expect(G.catchRate(4)).toBe(0.6);
     expect(G.catchRate(6)).toBe(0.35);
     expect(G.catchRate(150)).toBe(0.03);
+    expect(G.catchRate(26)).toBe(0.35); // Raichu: a stone evolution's result is final
+  });
+
+  test("tasks finished while it waits weaken it, raising the odds", () => {
+    herdr.state[G.GAME] = { encounter: { id: 4, at: Date.now(), balls: 3, weak: 0 } };
+    G.finishTask("p", 1, 0);
+    G.finishTask("p", 1, 0);
+    const e = G.game().encounter;
+    expect(e.weak).toBe(2);
+    expect(G.throwRate(e)).toBeCloseTo(0.9);
+    expect(G.throwRate(e, "ultra")).toBe(1);
+  });
+
+  test("Great Balls come from the bag and keep it there after the free balls run out", () => {
+    herdr.state[G.GAME] = { encounter: { id: 94, at: Date.now(), balls: 1 }, bag: { great: 1 } };
+    expect(G.throwBall("poke")).toBe("missed");
+    expect(G.throwBall("poke")).toBe("empty");
+    expect(G.throwBall("great")).toBe("fled");
+    expect(G.game().bag.great).toBe(0);
+  });
+
+  test("a wild catch gets a dex entry", () => {
+    herdr.state[G.GAME] = { encounter: { id: 94, at: Date.now(), balls: 3, project: "p" } };
+    roll(0);
+    G.throwBall();
+    expect(G.game().dex[94]).toMatchObject({ project: "p", how: "wild" });
+  });
+});
+
+describe("items and item evolutions", () => {
+  test("stone Pokemon no longer evolve by level", () => {
+    herdr.state[G.GAME] = { xp: { p: 1e6 } };
+    G.finishTask("p", 25, 0);
+    expect(herdr.state[G.PARTNERS]).toEqual({ p: 25 });
+  });
+
+  test("using a stone evolves the partner and spends it; without one nothing happens", () => {
+    herdr.state[G.PARTNERS] = { p: 133 };
+    herdr.state[G.GAME] = { bag: { thunder: 1 } };
+    expect(G.useItem("p", "fire")).toBeNull();
+    expect(G.useItem("p", "thunder")).toBe(135);
+    expect(herdr.state[G.PARTNERS]).toEqual({ p: 135 });
+    expect(G.game().bag.thunder).toBe(0);
+    expect(G.game().dex[135]).toMatchObject({ how: "evolved" });
+  });
+
+  test("an hour-long task finds a Link Cable and a Great Ball", () => {
+    G.finishTask("p", 1, 3600000);
+    expect(G.game().bag).toMatchObject({ link: 1 });
+    expect(G.game().bag.great).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("blocked agents", () => {
+  test("left waiting 10 minutes, the partner faints and its next task earns no XP", () => {
+    herdr.state[G.PARTNERS] = { p: 1 };
+    G.unblocked("p", G.FAINT_MS);
+    expect(G.game().fainted).toEqual({ p: true });
+    G.finishTask("p", 1, 0);
+    expect(G.game().xp.p ?? 0).toBe(0);
+    expect(G.game().fainted).toEqual({});
+    G.finishTask("p", 1, 0);
+    expect(G.game().xp.p).toBe(10);
+  });
+});
+
+describe("quests and ranks", () => {
+  test("four quests, one weekly, and a completed one pays once", () => {
+    const qs = G.quests();
+    expect(qs.length).toBe(4);
+    expect(qs.filter((q) => q.weekly).length).toBe(1);
+    for (let i = 0; i < 40; i++) G.finishTask(`p${i % 4}`, 1, 0);
+    const tasks = G.quests().find((q) => q.id === "w-tasks" || q.id === "w-projects");
+    if (tasks) expect(tasks.done).toBe(true);
+    expect(G.quests().every((q) => q.n <= q.need)).toBe(true);
+  });
+
+  test("all eight Kanto badges make you Champion in the same save", () => {
+    herdr.state[G.GAME] = { badges: ["boulder", "cascade", "thunder", "rainbow", "soul", "marsh", "volcano"] };
+    herdr.state[G.CAUGHT] = Array.from({ length: 150 }, (_, i) => i + 1);
+    G.recordCatches([151]);
+    expect(G.game().badges).toEqual(expect.arrayContaining(["earth", "champion"]));
   });
 });

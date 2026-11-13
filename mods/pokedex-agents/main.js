@@ -4,7 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec } from "herdr";
-import { game, progress, finishTask, finishSubTask, recordCatches, migrateProject, projectKey, projectLabel, PROJECTS } from "./game.js";
+import { game, progress, finishTask, finishSubTask, recordCatches, migrateProject, projectKey, projectLabel, unblocked, PROJECTS } from "./game.js";
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
 const HOUSING = "#9b293a"; // the body
@@ -105,8 +105,14 @@ function projectPet(name) {
   const legacy = LEGACY_POKEMON[((hash >>> 0) + (shared("retro-pokemon.steps")?.[name] ?? 0)) % LEGACY_POKEMON.length];
   return (legacy <= 151 ? legacy : (hash >>> 0) % 151 + 1) - 1;
 }
+// A shiny partner wears a twinkling gold star in its corner.
 function projectIcon(name, size) {
-  return image(`mods/pokedex-agents/pokemon/${POKEMON[projectPet(name)]}.png`).w(size).h(size).flex_none();
+  const id = POKEMON[projectPet(name)];
+  const sprite = image(`mods/pokedex-agents/pokemon/${id}.png`).w(size).h(size).flex_none();
+  if (!game().shiny.includes(id)) return sprite;
+  return div().relative().w(size).h(size).flex_none().child(sprite)
+    .child(div().absolute().top(0).right(0).text_size(Math.max(9, Math.round(size / 4))).font_bold().text_color("#e8c35a")
+      .child("\u2726").loop("opacity", { from: 0.3, to: 1, period: 1400 }));
 }
 const dexNumber = (name) => String(POKEMON[projectPet(name)]).padStart(3, "0");
 // The program as the app's table draws it: a one-color glyph in `color`, or a picture.
@@ -228,7 +234,9 @@ export default class Agents extends View {
       const prev = this.changed[a.address];
       if (prev?.s === s) continue;
       // A working agent going quiet finished a task: its project's partner earns XP.
-      if (prev?.s === "working" && s === "idle") finishTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at);
+      if (prev?.s === "working" && s === "idle") finishTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null);
+      // An agent that stops needing the person: answered fast counts for a quest, left long makes its partner faint.
+      if (prev?.s === "blocked" && a.space_name) unblocked(projectKey(a.space_name), now - prev.at);
       this.changed[a.address] = { s, at: now };
       dirty = true;
     }
@@ -243,13 +251,15 @@ export default class Agents extends View {
   // per start, so a Pokemon is caught when its agent opens (or is already open at start).
   catchOpened(list) {
     this.seen ??= new Set();
-    const fresh = new Set();
+    const caught = new Set(shared("pokedex.caught") ?? []);
     for (const a of list) {
       if (this.seen.has(a.address)) continue;
       this.seen.add(a.address);
-      fresh.add(POKEMON[projectPet(a.space_name)]);
+      const id = POKEMON[projectPet(a.space_name)];
+      if (caught.has(id)) continue;
+      caught.add(id);
+      recordCatches([id], a.space_name ? projectKey(a.space_name) : null);
     }
-    if (fresh.size) recordCatches([...fresh]);
   }
 
   // Keep offline pins until their terminal returns, and keep each pending until

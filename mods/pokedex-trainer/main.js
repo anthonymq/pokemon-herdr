@@ -1,7 +1,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay } from "herdr";
-import { game, BADGES, CAUGHT, PARTNERS, progress, trainerLevel, liveStreak, nameOf, projectLabel } from "./game.js";
+import { game, quests, BADGES, ITEMS, CAUGHT, PARTNERS, progress, trainerLevel, liveStreak, nameOf, projectLabel } from "./game.js";
 
 const C = {
   screen: "#17251f", panel: "#244438", border: "#67866c", lcd: "#d9e8bc", ink: "#244438",
@@ -20,7 +20,10 @@ export default class PokedexTrainer extends View {
 
   badge(b, earned) {
     return v_flex().id(`badge-${b.id}`).flex_1().gap(4).items_center().tooltip(`${b.name} Badge \u00b7 ${b.goal}`)
-      .child(image(`mods/pokedex-trainer/badges/${b.id}.png`).size(36).flex_none()
+      .child((b.rank
+        ? div().size(36).flex_none().rounded(18).bg(b.color).border(3).border_color(C.gold).flex().items_center().justify_center()
+          .font_family(PIXEL).text_size(16).text_color(C.ink).child(b.name[0])
+        : image(`mods/pokedex-trainer/badges/${b.id}.png`).size(36).flex_none())
         .when(!earned, el => el.opacity(0.25)))
       .child(div().text_size(10).text_color(earned ? C.cream : C.muted).child(b.name));
   }
@@ -55,6 +58,20 @@ export default class PokedexTrainer extends View {
       .child(this.section("BADGES"))
       .child(h_flex().flex_none().gap(4).p(10).rounded(5).bg(C.panel).border(1).border_color(C.border)
         .children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
+      .child(this.section("BAG"))
+      .child(h_flex().flex_none().gap(6).flex_wrap()
+        .when(!Object.values(g.bag).some(n => n > 0), el => el.child(div().text_size(12).text_color(C.muted)
+          .child("Empty. Long tasks, streak days and quests fill it.")))
+        .children(Object.entries(ITEMS).filter(([k]) => g.bag[k] > 0).map(([k, it]) => h_flex().id(`bag-${k}`).h(24).px(8).gap(6)
+          .items_center().rounded(4).bg(C.panel).border(1).border_color(it.color).text_size(12)
+          .child(div().size(8).rounded(4).bg(it.color)).child(`${it.name} x${g.bag[k]}`))))
+      .child(this.section("QUESTS"))
+      .child(v_flex().flex_none().gap(4)
+        .children(quests(g).map(q => h_flex().id(`quest-${q.id}`).h(24).px(8).gap(8).items_center().rounded(4)
+          .bg(q.done ? C.lcd : C.panel).text_color(q.done ? C.ink : C.cream).text_size(12)
+          .child(div().flex_none().font_family(PIXEL).text_size(11).child(q.weekly ? "WEEK" : "DAY"))
+          .child(div().flex_1().min_w(0).truncate().child(q.goal))
+          .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? "Done" : `${q.n}/${q.need} \u00b7 ${q.reward}`)))))
       .child(this.section(`RECENT CATCHES \u00b7 ${g.shiny.length} shiny`))
       .child(h_flex().flex_none().h(52).gap(6).px(6).items_center().rounded(5).bg(C.panel).border(1).border_color(C.border)
         .when(g.recent.length === 0, el => el.child(div().text_size(12).text_color(C.muted).child("Nothing caught yet.")))
@@ -73,7 +90,7 @@ export default class PokedexTrainer extends View {
             .tooltip(project)
             .when(Number.isInteger(id), el => el.child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(36).flex_none()))
             .child(v_flex().flex_1().min_w(0).gap(3)
-              .child(div().truncate().font_semibold().text_size(12).child(`${projectLabel(project)}${Number.isInteger(id) ? " \u00b7 " + nameOf(id) : ""}`))
+              .child(div().truncate().font_semibold().text_size(12).child(`${projectLabel(project)}${Number.isInteger(id) ? " \u00b7 " + nameOf(id) : ""}${g.shiny.includes(id) ? " \u2726" : ""}${g.fainted[project] ? " \u00b7 FAINTED" : ""}`))
               .child(div().h(4).w_full().rounded(2).bg(C.ink + "26").child(div().h_full().rounded(2).bg(C.ink).w(`${Math.round(into * 100)}%`))))
             .child(div().flex_none().font_family(PIXEL).text_size(16).child(`Lv${level}`));
         })));

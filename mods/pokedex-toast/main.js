@@ -4,9 +4,9 @@
 
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { props, closeOverlay, openOverlay, run, theme, playSound } from "herdr";
+import { props, closeOverlay, openOverlay, run, playSound } from "herdr";
 
-const DOT = { error: "blocked", warning: "working", success: "done", info: "accent" };
+const STRIPE = { error: "#9b293a", warning: "#ffd07a", success: "#9be29b", info: "#71d5df" };
 const SPRITE = /^mods\/pokedex-agents\/pokemon\/\d+\.png$/;
 const PIXEL = "PxPlus IBM VGA 8x16";
 const C = { screen: "#17251f", lcd: "#d9e8bc", ink: "#244438", cream: "#f7eed7", housing: "#9b293a", gold: "#ffd07a" };
@@ -75,33 +75,42 @@ export default class PokedexToast extends View {
           .child("\u00d7")));
   }
 
+  // Ordinary notifications as a Pokedex screen: dark LCD panel, a level-colored stripe, pixel title,
+  // and the icon (a sprite for game news) in a light LCD chip.
   render() {
-    const t = theme();
     const p = props() ?? {};
+    const stripe = STRIPE[p.level] ?? STRIPE.info;
     if (isEncounter(p)) return this.encounter(p);
     const login = /^([a-z0-9][a-z0-9_.-]{0,31}) needs login; run hc machine login \1$/.exec(p.body ?? "");
     const command = login ? `hc machine login ${login[1]}` : null;
     return h_flex()
       .id("toast")
       .size_full()
-      .px(18)
+      .pr(14)
       .gap(12)
       .items_center()
-      .bg(t.popover)
+      .bg(C.screen)
+      .border(2)
+      .border_color("#244438")
+      .rounded(6)
+      .font_family("Geist")
       .cursor_pointer()
-      .hover((s) => s.bg(t.hover))
+      .hover((s) => s.border_color(stripe))
       .on_click(() => this.open(p))
-      .child(p.icon ? image(p.icon).w(18).h(18).flex_none() : div().size(8).rounded(4).flex_none().bg(t[DOT[p.level] ?? "accent"]))
+      .child(div().w(6).h_full().flex_none().rounded_l(4).bg(stripe))
+      .child(div().size(34).flex_none().rounded(4).bg(C.lcd).border(1).border_color("#67866c").flex().items_center().justify_center()
+        .child(p.icon ? image(p.icon).size(SPRITE.test(p.icon) ? 32 : 18).flex_none() : div().size(10).rounded(5).bg(stripe)))
       .child(
         v_flex()
           .flex_1()
+          .gap(2)
           .overflow_hidden()
-          .child(div().truncate().font_semibold().text_size(13).text_color(t.foreground).child(login ? `${login[1]} needs a login: run` : p.title ?? ""))
-          .when(!login && Boolean(p.body), (el) => el.child(div().truncate().text_size(12).text_color(t.muted).child(p.body ?? "")))
+          .child(div().truncate().font_family(PIXEL).text_size(14).line_height("16px").text_color(C.cream).child((login ? `${login[1]} needs a login: run` : p.title ?? "").toUpperCase()))
+          .when(!login && Boolean(p.body), (el) => el.child(div().truncate().text_size(12).text_color("#b6c6b8").child(p.body ?? "")))
           .when(Boolean(login), (el) => el.child(h_flex().gap(8).items_center()
-            .child(div().flex_1().min_w(0).truncate().tooltip(command).text_size(12).text_color(t.muted).child(command))
-            .child(div().id("toast-login-copy").flex_none().px(6).py(3).rounded(4).bg(t.raised)
-              .text_size(12).text_color(t.foreground).cursor_pointer().hover(s => s.bg(t.hover))
+            .child(div().flex_1().min_w(0).truncate().tooltip(command).text_size(12).text_color("#b6c6b8").child(command))
+            .child(div().id("toast-login-copy").flex_none().px(6).py(3).rounded(4).bg(C.lcd)
+              .text_size(12).text_color(C.ink).cursor_pointer().hover(s => s.bg(C.cream))
               .on_click((_e, cx) => { cx.stop_propagation(); cx.write_to_clipboard(command); this.copied = true; cx.notify(); })
               .child(this.copied ? "Copied" : "Copy")))),
       );

@@ -7,9 +7,9 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, props, run, theme, home } from "herdr";
+import { panes, agents, shared, props, run, theme, home } from "herdr";
 
-// Pixel look (fonts ship in mods/retropet-spaces/fonts). Only the header changes:
+// Pixel look (fonts ship in mods/pokedex-spaces/fonts). Only the header changes:
 // the terminal's own text, font and colors are left alone.
 const PX = "PxPlus IBM VGA 8x16";
 const PXS = "Pixelated MS Sans Serif";
@@ -25,6 +25,19 @@ const BADGE = { working: "BUSY", blocked: "NEEDS YOU", done: "DONE", idle: "IDLE
 function icon(p, size, color) {
   if (!p?.icon) return null;
   return p.tint ? svg(p.icon).size(size).flex_none().text_color(color) : image(p.icon).w(size).h(size).flex_none();
+}
+
+// An agent pane shows its project's partner; a shiny one twinkles with a gold star.
+function partner(pane) {
+  const a = agents().find((x) => x.pane === pane);
+  if (!a?.space_name) return null;
+  const id = (shared("pokedex.partners") ?? {})[(shared("pokedex.projects") ?? {})[a.space_name] ?? a.space_name];
+  if (!Number.isInteger(id)) return null;
+  const shiny = (shared("pokedex.game")?.shiny ?? []).includes(id);
+  return div().relative().size(20).flex_none()
+    .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(20))
+    .when(shiny, (el) => el.child(div().absolute().top(-3).right(-3).text_size(9).font_bold().text_color("#e8c35a")
+      .child("\u2726").loop("opacity", { from: 0.3, to: 1, period: 1400 })));
 }
 
 function folder(cwd) {
@@ -76,6 +89,7 @@ export default class Pane extends View {
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
       .on_click(() => run("pane.focus", { pane }))
       .when(Boolean(pic), (el) => el.child(pic))
+      .children([partner(pane)].filter(Boolean))
       .child(div().size(6).flex_none().rounded(3).bg(p.focused ? CYAN : TRIM))
       .child(div().flex_none().truncate().max_w(260).px(4).bg(SCREEN).font_family(PX).text_size(16).line_height("16px")
         .text_color(LCD).child(name.toUpperCase()))

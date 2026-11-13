@@ -2,7 +2,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { shared, setShared, props, closeOverlay, nextCommand } from "herdr";
 import { POKEMON } from "./pokemon.js";
-import { game } from "./game.js";
+import { game, itemsFor, useItem, ITEMS, nameOf, projectLabel } from "./game.js";
 
 const CAUGHT = "pokedex.caught";
 const PARTNERS = "pokedex.partners";
@@ -120,6 +120,9 @@ export default class PokedexCollection extends View {
       .when(Boolean(this.project) && selected && !partner, el => el.cursor_pointer()
         .hover(s => s.border_color(C.housing))
         .on_click(() => this.choose(p.id)))
+      .when(!this.project && selected, el => el.cursor_pointer()
+        .when(this.picked === p.id, el => el.border(2).border_color(C.housing))
+        .on_click((_e, cx) => { this.picked = this.picked === p.id ? null : p.id; cx.notify(); }))
       .child(h_flex().w_full().h(12).justify_between().items_center()
         .child(div().text_size(10).child(`#${String(p.id).padStart(3, "0")}`))
         .when(partner, el => el.child(div().text_size(10).font_bold().text_color(C.housing).child("PARTNER")))
@@ -128,6 +131,37 @@ export default class PokedexCollection extends View {
       .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(48).flex_none())
       .child(h_flex().w_full().h(17).justify_center().items_center()
         .child(div().min_w(0).truncate().text_size(12).font_semibold().child(p.name)));
+  }
+
+  // The dex entry of the clicked catch: when, where and how it was caught.
+  entry() {
+    const id = this.picked;
+    if (!id || !this.caught().includes(id)) return null;
+    const e = game().dex[id];
+    const how = { wild: "caught in the wild", evolved: "evolved", met: "met when an agent opened" }[e?.how];
+    const parts = [`#${String(id).padStart(3, "0")} ${nameOf(id)}`];
+    if (e) parts.push(`${how ?? "caught"} ${new Date(e.at).toLocaleDateString()}`, e.project ? `in ${projectLabel(e.project)}` : "");
+    else parts.push("caught before the Pokedex kept entries");
+    if (game().shiny.includes(id)) parts.push("\u2726 shiny");
+    return parts.filter(Boolean).join(" \u00b7 ");
+  }
+
+  // Picker mode: the stones and Link Cables the current partner can evolve with.
+  itemBar() {
+    const usable = itemsFor(this.partner);
+    if (!usable.length) return null;
+    return h_flex().flex_none().gap(6).items_center().flex_wrap()
+      .child(div().text_size(11).text_color(C.muted).child("Evolve with:"))
+      .children(usable.map(({ item, to, have }) => div().id(`use-${item}`).h(26).px(8).flex().items_center().gap(6)
+        .rounded(4).border(1).border_color(have ? ITEMS[item].color : C.border).bg(C.panel)
+        .text_size(12).text_color(have ? C.cream : C.muted)
+        .when(have > 0, el => el.cursor_pointer().hover(s => s.bg(C.border)).on_click((_e, cx) => {
+          const evolved = useItem(this.project, item);
+          if (evolved) this.partner = evolved;
+          cx.notify();
+        }))
+        .child(div().size(8).rounded(4).bg(ITEMS[item].color))
+        .child(`${ITEMS[item].name} x${have} \u2192 ${nameOf(to)}`)));
   }
 
   render() {
@@ -162,7 +196,8 @@ export default class PokedexCollection extends View {
       .child(div().flex_none().text_size(12).text_color(C.muted)
         .child(this.project
           ? "Pick one of your caught Pokemon. It takes over this project's level and XP."
-          : "Gen 1 only. A Pokemon is caught when an agent opens in its project."))
+          : "Gen 1 only. A Pokemon is caught when an agent opens in its project. Click a catch for its entry."))
+      .children(this.project ? [this.itemBar()].filter(Boolean) : [])
       .child(div().h(4).w_full().flex_none().rounded(2).bg(C.panel)
         .child(div().h_full().rounded(2).bg(C.cyan)
           .w(Math.max(0, this.width - 32) * caught.length / 151)))
@@ -176,8 +211,8 @@ export default class PokedexCollection extends View {
           .child(this.filterButton("collection-caught", "Caught", this.caughtOnly,
             (_event, cx) => { this.caughtOnly = true; cx.notify(); }))))
       .child(div().h(18).flex_none().text_size(11)
-        .text_color(this.error ? "#ffb9b1" : C.muted)
-        .child(this.error || "Saved on this device."))
+        .text_color(this.error ? "#ffb9b1" : this.entry() ? C.cream : C.muted)
+        .child(this.error || this.entry() || "Saved on this device."))
       .child(v_flex().id("collection-grid").flex_1().min_h(0).gap(8).pr(4)
         .overflow_y_scrollbar().mode("always")
         .children(rows)

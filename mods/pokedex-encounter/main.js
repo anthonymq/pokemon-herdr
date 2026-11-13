@@ -1,7 +1,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { props, closeOverlay } from "herdr";
-import { game, throwBall, runAway, catchRate, nameOf, ENCOUNTER_MS } from "./game.js";
+import { game, throwBall, runAway, throwRate, nameOf, ITEMS, ENCOUNTER_MS } from "./game.js";
 
 const C = {
   screen: "#17251f", panel: "#244438", border: "#67866c", lcd: "#d9e8bc", ink: "#244438",
@@ -14,9 +14,12 @@ const SAY = {
   missed: (n) => `Oh no! ${n} broke free!`,
   fled: (n) => `${n} fled!`,
   gone: () => "The wild Pokemon is gone.",
+  empty: () => "No balls of that kind left.",
 };
+const BALL = { poke: "Poke Ball", great: ITEMS.great.name, ultra: ITEMS.ultra.name };
 
-// A wild encounter, opened from its toast: throw up to three Poke Balls before it flees.
+// A wild encounter, opened from its toast: three free Poke Balls, plus Great and Ultra Balls from the bag.
+// Every agent task finished while it waits weakens it (up to 3), raising the odds.
 export default class PokedexEncounter extends View {
   init() {
     const e = game().encounter;
@@ -24,8 +27,10 @@ export default class PokedexEncounter extends View {
     this.result = this.wild ? null : "gone";
   }
 
-  button(id, label, onClick, primary) {
-    return div().id(id).flex_1().h(34).flex().items_center().justify_center().rounded(5).border(1)
+  button(id, label, onClick, primary, disabled = false) {
+    if (disabled) return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5).border(1)
+      .border_color(C.border).bg(C.screen).text_color(C.muted).text_size(12).child(label);
+    return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5).border(1)
       .border_color(primary ? C.lcd : C.border).bg(primary ? C.lcd : C.panel).text_color(primary ? C.ink : C.cream)
       .text_size(13).font_semibold().cursor_pointer().hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
   }
@@ -35,19 +40,25 @@ export default class PokedexEncounter extends View {
     const close = () => overlay && closeOverlay(overlay);
     const e = game().encounter;
     const name = this.wild ? nameOf(this.wild) : "";
-    const done = this.result && this.result !== "missed";
+    const done = this.result && this.result !== "missed" && this.result !== "empty";
+    const bag = game().bag;
+    const left = { poke: e?.balls ?? 0, great: bag.great ?? 0, ultra: bag.ultra ?? 0 };
+    const odds = (ball) => e ? `${Math.round(throwRate(e, ball) * 100)}%` : "";
+    const toss = (ball) => (_e, cx) => { this.result = throwBall(ball); cx.notify(); };
     return v_flex().id("pokedex-encounter").size_full().p(16).gap(10).items_center().bg(C.screen).text_color(C.cream).font_family("Geist")
       .child(div().font_family(PIXEL).text_size(20).child(this.wild ? `WILD ${name.toUpperCase()}` : "NO ENCOUNTER"))
       .child(div().size(120).flex_none().flex().items_center().justify_center().rounded(60).bg(C.panel)
         .when(Boolean(this.wild), el => el.child(image(`mods/pokedex-agents/pokemon/${this.wild}.png`).size(96)
           .when(this.result === "caught", el => el.opacity(0.35))
           .when(!this.result || this.result === "missed", el => el.loop("top", { from: 0, to: -4, period: 900 })))))
-      .child(div().h(18).text_size(13).child(this.result ? SAY[this.result](name) : `Catch rate ${Math.round(catchRate(this.wild) * 100)}%`))
-      .child(div().text_size(11).text_color(C.muted).child(e && !done ? `Poke Balls left: ${e.balls}` : ""))
+      .child(div().h(18).text_size(13).child(this.result ? SAY[this.result](name) : `Catch rate ${odds("poke")} with a Poke Ball`))
+      .child(div().text_size(11).text_color(e?.weak ? C.gold : C.muted)
+        .child(e && !done ? (e.weak ? `Weakened x${e.weak} by your agents' work` : "Finish agent tasks while it waits to weaken it") : ""))
       .child(div().flex_1())
-      .child(h_flex().w_full().gap(8)
+      .child(v_flex().w_full().gap(6)
         .when(!done, el => el
-          .child(this.button("enc-throw", "Throw Poke Ball", (_e, cx) => { this.result = throwBall(); cx.notify(); }, true))
+          .children(["poke", "great", "ultra"].map((ball) => this.button(`enc-${ball}`,
+            `${BALL[ball]} x${left[ball]} \u00b7 ${odds(ball)}`, toss(ball), ball === "poke", left[ball] < 1)))
           .child(this.button("enc-run", "Run", () => { runAway(); close(); }, false)))
         .when(Boolean(done), el => el.child(this.button("enc-close", "Close", close, true))));
   }
