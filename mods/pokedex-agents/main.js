@@ -530,9 +530,6 @@ export default class Agents extends View {
       const { level, into } = progress(game().xp[a.space_name]);
       const tip = [a.space_name || label(a), detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
         subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${level}`].filter(Boolean).join(" \u00b7 ");
-      const pet = div().relative().child(projectIcon(a.space_name, SPRITE));
-      if (a.status === "working") pet.loop("top", { from: 0, to: -3, period: 1000 });
-      if (a.status === "blocked") pet.loop("opacity", { from: 0.55, to: 1, period: 800 });
       const pin = div().id(`pin-${a.address}`).flex_none().rounded(2).text_color(INK.dim).cursor_pointer()
         .hover((s) => s.text_color(SCREEN))
         .tooltip(a.pinned ? "Unpin" : "Pin to the top")
@@ -547,6 +544,7 @@ export default class Agents extends View {
         .id(`ag-${a.address}`)
         .w(tileWidth)
         .flex_none()
+        .relative()
         .px(4)
         .pt(3)
         .pb(4)
@@ -569,18 +567,24 @@ export default class Agents extends View {
           cx.stop_propagation();
           openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
         })
-        .child(h_flex().w_full().h(14).items_center().justify_between()
-          .child(h_flex().gap(3).items_center()
-            .when(this.hovered === a.address || a.pinned, (el) => el.child(pin))
-            .when(subs.length > 0, (el) => el.child(div().text_size(9.5).font_bold().text_color(INK.soft).child(`+${subs.length}`))))
-          .child(this.status(a, true)))
-        .child(pet)
+        // The sprite takes the top of the tile, its row and the status line's: drawn at 80 px in a 63 px
+        // window that crops the art's empty margin. The tile keeps its size.
+        .child(div().w_full().h(63).flex_none().overflow_hidden().flex().items_center().justify_center()
+          .child(div().relative().flex_none().child(projectIcon(a.space_name, 80))
+            .when(a.status === "working", (el) => el.loop("top", { from: 0, to: -3, period: 1000 }))
+            .when(a.status === "blocked", (el) => el.loop("opacity", { from: 0.55, to: 1, period: 800 }))))
         .child(h_flex().w_full().h(14).px(2).justify_center().items_center().rounded(2).when(on, (el) => el.bg(SCREEN))
           .child(div().min_w(0).truncate().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : SCREEN).child(a.space_name || label(a))))
         .child(h_flex().w_full().px(2).gap(3).items_center()
           .child(div().flex_none().font_family(PX).text_size(10).line_height("10px").text_color(INK.soft).child(`Lv${level}`))
           .child(div().flex_1().h(3).rounded(2).bg(INK.line)
-            .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, (el) => el.w(`${Math.round(into * 100)}%`)))));
+            .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, (el) => el.w(`${Math.round(into * 100)}%`)))))
+        // Status, pin and sub-agent count float over the sprite's top corners instead of taking a row.
+        .child(h_flex().absolute().top(3).left(4).right(4).h(14).items_center().justify_between()
+          .child(h_flex().gap(3).items_center()
+            .when(this.hovered === a.address || a.pinned, (el) => el.child(pin))
+            .when(subs.length > 0, (el) => el.child(div().text_size(9.5).font_bold().text_color(INK.soft).child(`+${subs.length}`))))
+          .child(this.status(a, true)));
     };
     // Every tile gets the same fixed width: flex shares let each tile's text nudge its column.
     // The list keeps 8 px each side and 6 px for its scrollbar. The measured width includes the
