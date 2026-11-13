@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, openOverlay, shared, setShared } from "herdr";
+import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, openOverlay, shared, setShared, home } from "herdr";
 
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
@@ -94,8 +94,11 @@ export default class Picker extends View {
     const quiet = groups.filter((p) => !p.w.status && p.ctxs.length);
     busy.sort((a, b) => (b.w.status === "blocked") - (a.w.status === "blocked"));
     const out = [];
+    // Typed text that matches no tab or space offers a new space, first so Enter takes it.
+    const typed = this.filter.trim();
+    if (typed && !groups.some((p) => p.ctxs.length)) out.push({ kind: "create", text: typed });
+    // One line per tab: each row carries its space (Pokemon and name), so spaces get no title rows.
     const add = (p) => {
-      out.push({ kind: "head", w: p.w });
       for (const c of p.ctxs) out.push({ kind: "ctx", ...c });
     };
     busy.forEach(add);
@@ -119,6 +122,13 @@ export default class Picker extends View {
       return;
     }
     this.close();
+    // space.new shows the space it makes. A path (~/... or /...) becomes its folder and Herdr names the space
+    // after it; anything else becomes its name.
+    if (r.kind === "create") {
+      const path = /^(~(\/|$)|\/)/.test(r.text);
+      run("space.new", path ? { folder: r.text.replace(/^~/, home()) } : { name: r.text });
+      return;
+    }
     if (r.kind === "ctx") run("tab.select", { id: r.ctx.id });
     else if (r.kind === "new") run("tab.new");
     else if (r.kind === "space") run("space.new", { machine: r.machine ?? "" });
@@ -140,7 +150,7 @@ export default class Picker extends View {
     // One continuous strip: each row (and the group title before it) at a fixed
     // y. Scrolling moves the strip only as far as it takes to keep the selected
     // row in view, so the arrows can't run the selection off the list.
-    const H = { head: 29, earlier: 35, new: 36, ctx: 32, space: 32 };
+    const H = { head: 29, earlier: 35, new: 36, ctx: 32, space: 32, create: 32 };
     const tops = [];
     let y = 0;
     rows.forEach((r) => { tops.push(y); y += H[r.kind] ?? 32; });
@@ -196,6 +206,25 @@ export default class Picker extends View {
           .child(`earlier: ${r.count} quiet space${r.count > 1 ? "s" : ""} ${this.showEarlier ? "▴" : "▾"}`);
       }
       const on = r === sel;
+      if (r.kind === "create") {
+        const path = /^(~(\/|$)|\/)/.test(r.text);
+        return h_flex()
+          .id("pk-create")
+          .mx(4)
+          .px(10)
+          .h(32)
+          .items_center()
+          .rounded(7)
+          .gap(8)
+          .cursor_pointer()
+          .when(on, (el) => el.bg(t.hover))
+          .hover((s) => s.bg(t.hover))
+          .on_click(() => this.go(r))
+          .child(div().w(12).text_color(t.accent).child("+"))
+          .child(div().flex_none().text_color(t.muted).child(path ? "new space in" : "new space"))
+          .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(t.foreground).child(r.text))
+          .child(div().flex_none().text_size(11).text_color(t.dim).child("Enter"));
+      }
       if (r.kind === "new" || r.kind === "space") {
         const label = r.kind === "new" ? "new tab" : r.machine ? `new space on ${r.machine}` : "new space";
         return h_flex()
@@ -230,7 +259,13 @@ export default class Picker extends View {
         .hover((s) => s.bg(t.hover))
         .on_click(() => this.go(r))
         .child(this.glyph(t, r.ctx.status))
-        .child(div().flex_1().truncate().text_color(t.foreground).when(here, (d) => d.font_semibold()).child(r.ctx.name))
+        // The space's partner Pokemon (28 px art in a 22 px box that crops its margin), else its letter square.
+        .child(partnerOf(r.w)
+          ? div().size(22).flex_none().overflow_hidden().flex().items_center().justify_center()
+            .child(image(`mods/pokedex-agents/pokemon/${partnerOf(r.w)}.png`).size(28).flex_none())
+          : h_flex().size(18).mx(2).flex_none().rounded(5).bg(spaceColor(t, r.w)).items_center().justify_center().text_size(10.5).font_bold().text_color("#ffffff").child([...r.w.name][0]?.toUpperCase() ?? "?"))
+        .child(div().flex_none().max_w(220).truncate().font_semibold().text_color(t.foreground).child(r.w.name))
+        .child(div().flex_1().min_w(0).truncate().text_color(here ? t.foreground : t.muted).when(here, (d) => d.font_semibold()).child(r.ctx.name))
         .when(r.ctx.status === "blocked", (el) => el.child(div().text_size(11).text_color(t.blocked).child("needs you")))
         .when(r.ctx.status === "done", (el) => el.child(div().text_size(11).text_color(t.done).child("finished")))
         .child(div().text_size(11).text_color(t.dim).child(who + (r.team ? `  +${r.team}` : "")));

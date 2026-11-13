@@ -188,16 +188,16 @@ export default class Agents extends View {
     }
   }
 
-  // Every space without a saved partner saves the one this mod draws for it (the default picked from the space
-  // name). The trainer card and the spaces list read saved partners only, and spaces sharing a repo then
-  // share one Pokemon.
-  savePartners() {
+  // A space gets its Pokemon when an agent opens in it: an agent's project without a saved partner saves the one
+  // this mod draws for it (the default picked from the space name). Spaces with only shells get none, so the
+  // spaces list and the picker show their plain marks. Spaces sharing a repo share one Pokemon.
+  savePartners(list) {
     const partners = shared("pokedex.partners") ?? {};
     const missing = {};
-    for (const sp of spaces()) {
-      if (!sp.name) continue;
-      const key = projectKey(sp.name);
-      if (partners[key] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(sp.name)];
+    for (const a of list) {
+      if (!a.space_name) continue;
+      const key = projectKey(a.space_name);
+      if (partners[key] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(a.space_name)];
     }
     if (Object.keys(missing).length) setShared("pokedex.partners", { ...partners, ...missing });
   }
@@ -430,7 +430,7 @@ export default class Agents extends View {
     const now = Date.now();
     this.track(list, now);
     this.resolveProjects(cx);
-    this.savePartners();
+    this.savePartners(list);
     this.trackSubAgents(list, terminals());
     this.catchOpened(list);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
