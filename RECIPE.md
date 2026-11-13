@@ -1,0 +1,123 @@
+# Pokedex
+
+A Herdr window dressed as a handheld Pokedex. The left side is a red device housing: a blue camera sensor and the word POKEDEX at the top, a dark green screen listing your projects, and below it a stack of pale LCD cards, one per coding agent. Each card shows the Pokemon that belongs to that agent's project. The Pokemon bobs while the agent works, pulses when it needs you, sparkles when it's done and sleeps when idle. On the right, your terminals sit in rounded cards on a deep red body under a red tab bar, with a dark status strip along the bottom. Everything is drawn natively by Herdr (GPUI elements described from JavaScript). There's no HTML or web view anywhere.
+
+![Pokedex](preview.png)
+
+## What you see
+
+The window has no system title bar. On macOS the window buttons sit at 12, 16 px over the top left of the sidebar. The whole window is a row: the sidebar (300 px, resizable from 76 to 440 px), a 3 px `#641b2b` divider, then the work area. The base housing color is `#9b293a`.
+
+**Sidebar, top to bottom**
+
+1. **Brand plate (124 px).** Red `#9b293a` with a 2 px `#e8797d` line underneath. Dragging it moves the window. On the left is a 46 px round sensor: a `#641b2b` bezel, a cream `#f7eed7` ring, a `#298eaa` ring, a cyan `#71d5df` lens and a small `#edffff` glint. Beside it, "POKEDEX" in the pixel font (PxPlus IBM VGA 8x16, 23 px), with "AGENT CONTROL" below it in 10 px semibold `#f3bfba`. Three 7 px lights sit at the top right: yellow `#ffcc67` while any agent is blocked, cyan while any is working, and dark `#6e2930` otherwise. The third light is always LCD green `#d9e8bc`. Under them runs a row of three short `#641b2b` bars (84, 20 and 20 px). The rest of the console text uses Geist.
+2. **Projects (weight 0.9, min 120 px).** A 36 px red header strip: a small cyan lens dot, "PROJECTS / SPACES" in cream pixel type, and a "+" on the right. Below it is a dark green screen (`#244438`). Each machine gets a heading band (`#355746` with a 2 px cyan left edge): a monitor or server pixel icon, the machine name in caps ("THIS MACHINE" for this computer), a thin rule, a space count and a "+". Spaces are 32 px rows (28 px for worktrees) with a 6 px colored square, the name in 16 px pixel type, and a "!" (blocked) or "*" (done) mark. Only unusual git info follows the name: the repo when it differs from the name, the branch unless it's main or master or matches the name, then ahead in LCD green (↑2) and behind in `#ffd3a8` (↓1). The active space is an LCD green row with dark ink and a cyan left edge. Worktree spaces sit under their main checkout with a branch icon.
+3. **Agents (weight 1.4, min 160 px).** A red header strip with the lens dot, "POKÉMON / AGENTS", and a sort icon on the right. Under it, on the red housing, are group labels in pixel caps (`#f7eed7` at 70%) with a count and a rule to the edge, then 73 px LCD cards (`#d9e8bc`, 1.5 px border, 4 px corners) with 5 px between them. Each card holds:
+   - a 58 px scene with a faint ground strip and the project's Pokemon sprite at 48 px. Its corner mark is "z" (idle), "!" (blocked) or "✦" (done).
+   - a name line in 16 px pixel type. On the focused card it's inverted (LCD text on `#244438`).
+   - an optional task line (11.5 px).
+   - a status line (10.5 px): a status mark, a bold status word (WORKING, NEEDS YOU, DONE, IDLE), the program's icon and name, the machine name for remote agents, the time since the last state change (`<1m`, `5m`, `3h`, `2d`), and a fold chevron with a count when the agent has sub-agents.
+   - Sub-agents sit under their parent as 24 px LCD strips joined by tree lines: a 14 px Pokemon, the name and a status mark.
+   - With no agents, a "NO DATA" card explains that agents appear when they report status, and that older versions and agents inside tmux may not.
+4. **Footer (48 px).** Red with a 2 px `#641b2b` top line. It holds a single "Settings" button (88 x 26 px, `#e8797d` border). Nothing else is in the footer.
+
+**Work area, top to bottom**
+
+1. **Tab bar (48 px).** Red `#9b293a` with a 2 px `#e8797d` bottom line. You can drag the window by it. Tabs are 32 px tabs with 6 px corners, `#9b293a` with an `#e8797d` border and cream text. The active tab is cream with dark green text, a cream border and a close cross. Each tab shows its program icon, its name (ordinary unnamed tabs show their number), a spinner while working and a dot when blocked or done. A zoomed tab gets " Z" after its name. On the right are a round 26 px "+", then FILES and CHANGES buttons (white when their panel is open). On Linux and Windows, minimize, maximize and close buttons come last. On macOS the bar leaves room for the traffic lights when the sidebar is narrow.
+2. **Body.** A `#812535` row with 10 px padding and 10 px gaps. Terminal panes are cards with 8 px corners, a 2 px `#4c302d` border that turns cyan `#71d5df` on focus, and 14 x 12 px terminal padding. They're framed even when a tab has only one pane. Each pane has a 34 px dark green header: the program icon, a 6 px dot (cyan when focused), the name in caps on a `#17251f` chip, the folder (with `~` for home) in Pixelated MS Sans Serif 11 px, and a status badge (BUSY, NEEDS YOU, DONE, IDLE) in the theme's status color. A 368 px side panel (280 to 900 px) on the right shows Herdr's Files or Changes. It's hidden until opened.
+3. **Status strip (30 px).** Dark `#17251f` with 11 px `#b6c6b8` text: a cyan dot, the active space's name, the focused agent's program, then counts that only appear when they're nonzero: "Working N" (cyan), "Needs you N" (`#ffd07a`), "Done N" (LCD green) and "Idle N" (`#b6c6b8`). It ends with "HERDR / FIELD SYSTEM" in `#819788`.
+
+**Theme.** The layout sets no theme of its own, so the person's theme still applies. It only overrides colors: canvas `#17251f`, chrome `#9b293a`, accent and working `#71d5df`, blocked `#ffd07a`, done `#b9dc92`. Pane backgrounds use the theme's `background`.
+
+**Compact rail.** Under 160 px the sidebar becomes a rail. The sensor shrinks to 32 px and the title goes. Spaces and agents become 32 x 26 px numbered cells. Agent cells show a state mark in housing inks: a cyan spinner, "!" in cyan, "*" in cream, "·" for idle. The footer button becomes "⚙", and a "»" at the bottom of the agents list widens the sidebar again.
+
+## How it behaves
+
+**Agent statuses** come from Herdr's reported status (OSC 7501). Agents that don't report show up only as ordinary terminals.
+
+- **Working:** the sprite bobs 3 px over 1 s, the card shows a spinning ring and WORKING, the brand plate's cyan light comes on, and the pane badge reads BUSY.
+- **Blocked (needs you):** the sprite pulses between 55% and 100% opacity over 0.8 s, with a red "!" in the corner and a red "!" chip next to NEEDS YOU on the card. The yellow brand light comes on and the space row shows "!". Sub-agent strips use a "!" chip in Priority view and a NEEDS YOU chip in Grouped view.
+- **Done:** a "✦" sparkle, a filled dot and DONE. The space row shows "*". Once someone looks at the agent, Herdr turns it to idle.
+- **Idle:** a "z" over the sprite, an empty ring and IDLE in softer ink.
+
+A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: its parent carries that news. A parent sorts by its most urgent sub-agent.
+
+**Pokemon per project.** Every agent in a space shares one Pokemon, chosen by hashing the space's name (FNV-1a) into a list of 40 Pokedex numbers. The same project name always gets the same Pokemon. Clicking a scene (tooltip "No. 025 · Change this project's Pokemon") steps that project to the next Pokemon in the list, wrapping around. Every Herdr mod shares the step count, and it's keyed by space name.
+
+**Agents list.**
+- Clicking a card focuses its pane. Clicking a sub-agent strip focuses it if it has a pane, and otherwise peeks at it.
+- Hovering a card reveals a pin. It pins the agent to the top of every agent list across connected Herdr clients, or unpins it.
+- The sort icon opens a small popup: **Priority** (the default) groups cards under Needs you, Done, Working and Idle, newest change first. **Grouped by space** puts them under each space's name. Pinned agents always come first, under "PINNED".
+- Clicking a group label folds it. Folded, it shows its count, its most urgent mark and a chevron. The chevron on a card folds its sub-agents.
+- The list sets Herdr's agent order, so next agent and previous agent follow it.
+- Time-since labels refresh every 30 s.
+
+**Projects list.**
+- Clicking a space switches to it. Dragging one onto another in the same machine reorders them, with a cyan line marking where it will land. Right-click opens Herdr's space menu, which includes the worktree actions.
+- The header "+" makes a new space. A machine's "+" makes one on that machine. A machine heading folds and unfolds. A machine that was rebuilt offers "Connect".
+- Worktree spaces move under their main checkout by themselves.
+- Git info refreshes when a command or agent turn ends, when the repo changes on disk, and every 60 s for visible repos while the window is in front.
+
+**Brand, footer and status.** Clicking the sensor opens the command palette (tooltip "Open command palette"). Settings opens Herdr's Look settings. The status strip is display only.
+
+**Tabs.** Click to select a tab, double-click to rename it, drag to reorder it, right-click for its menu. The close cross closes the active tab. Scrolling the wheel over the bar moves to the previous or next tab, and the bar scrolls to keep the active tab in view. "+" opens Herdr's new menu (terminal or any installed agent). FILES and CHANGES toggle the side panel, and each space remembers which panel it had open. When a command prefix is armed, the active tab's border turns cyan.
+
+**Panes.** Clicking a header focuses its pane. Hovering a header shows split right, split down, zoom (unzoom when zoomed) and close.
+
+**Movement.** Sprite bobbing, pulsing and the spinners are native animations, not timers. You can drag the sidebar edge, and the side panel resizes too.
+
+## Built from
+
+- **`layouts/pokedex.json`.** Root `row` with `titlebar: "none"`, `traffic_lights: [12, 16]`, `preview: "layouts/pokedex.svg"`, `background: "#9b293a"`, the `colors` above, `terminal_padding: [14, 12]` and a 3 px `#641b2b` divider. Tree:
+  - `sidebar` column (300 px, min 76, max 440, `#9b293a`):
+    - `brand` block, 124 px, `window_drag`, mod `pokedex-console` with props `{ role: "brand" }`
+    - `sidebar-lists` column (3 px `#641b2b` divider):
+      - `spaces` block (weight 0.9, min 120), mod `pokedex-spaces`
+      - `agents` block (weight 1.4, min 160), mod `pokedex-agents`
+    - `sidebar-footer` block, 48 px, `pokedex-console` with `{ role: "footer" }`
+  - `work` column, `resizable: false`:
+    - `tabs` block, 48 px, `window_drag`, mod `pokedex-tabs`
+    - `work-body` row (padding 10, gap 10, `#812535`):
+      - `main` block, `{ tab: "active" }` with the pane frame: gap 10, radius 8, background `background`, border 2 `#4c302d`, focus 2 `#71d5df`, header mod `pokedex-pane` (34 px, top, always), `lone: true`
+      - `panel` column (hidden, 368 px, 280 to 900) holding `panel-body`, a `stack` (active `files`) of `files` and `changes` blocks using Herdr's shipped mods
+    - `status` block, 30 px, `pokedex-console` with `{ role: "status" }`
+- **`layouts/pokedex.svg`.** The settings preview.
+- **Five mods.** All have `place: "none"`:
+  - `pokedex-console` draws three roles from `props().role`: `brand`, `footer` and `status` (it defaults to brand). It reads `agents()`, `spaces()` and `focused()`, and runs `app.palette` and `app.settings {section: "look"}`. It measures its own width with `on_size_change` and goes compact under 160 px.
+  - `pokedex-spaces` was cloned from Herdr's spaces mod (via `retropet-spaces`). It uses `spaces()`, `machines()`, `panes()`, `window()`, `layout()` and `shared("space.colors")`. It runs `exec("git", ...)` (`status --porcelain=v2 --branch`, `rev-parse`) locally or on the space's machine, and `hc machine ls/rm/add`. It uses `watchFolder` on local repos, `space.select`, `space.move`, `space.new` and `openOverlay` of the shipped `menu`. Its timers run at 250 ms (cheap change check) and 15 s (machines). It holds `fonts/` and `art/` (`monitor.svg`, `server.svg`, `dither.svg`).
+  - `pokedex-agents` was cloned from `retro-agents`. It uses `agents()`, `terminals()` (sub-agent trees via `parent`), `panes()`, `spaces()`, `focused()` and `setAgentOrder`. It runs `pane.focus`, `terminal.peek` and `terminal.pin`. Shared keys: `agents.sort`, `retro-pokemon.steps`, `sidebar.width` and `sidebar.collapsed`. It calls `layout.resize` on `sidebar` (76 px, or back to the saved width, default 300). It opens itself as a 200 x 140 popup with `{ sortMenu: true }`. Its localStorage keys are `changed` (state timestamps, pruned after 30 days) and `pins`. It holds `pokemon/` with 40 PNG sprites, inherited unchanged from the original personal setup: 1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387 (hashed in that order).
+  - `pokedex-tabs` was cloned via `retropet-tabs`. It runs `tab.select`, `tab.move`, `tab.rename`, `tab.close`, `tab.prev` and `tab.next`, plus `layout.select/show/hide` on `panel-body` and `panel`, and the `window.*` commands. It opens the `new-menu` popup (250 x 512) and `menu`. It reads `shared("workspace.panels")` (default files and changes) and stores each space's panel in localStorage `panels`. It uses `ScrollHandle` and holds Windows window icons (`win-min`, `win-max`, `win-restore`, `win-close`).
+  - `pokedex-pane` was cloned via `retropet-pane`. It reads `panes()` and `home()`, runs `pane.focus`, `pane.split`, `pane.zoom` and `pane.close`, and holds `split-right`, `split-down`, `zoom`, `unzoom` and `close` SVGs.
+- **Fonts.** Three files in `mods/pokedex-spaces/fonts/`: `PxPlus_IBM_VGA_8x16.ttf`, plus `PixelatedMSSansSerif-Regular.ttf` and `-Bold.ttf`. Their notices are `LICENSE-PxPlus.txt` (CC BY-SA 4.0) and `LICENSE-MSSansSerif.txt` (lou 2017, FontStruct, CC BY-SA 3.0). Herdr loads them at start, and every mod uses them by family name.
+- **Shipped Herdr dependencies, not packaged:** `files`, `changes`, `menu`, `new-menu`, `worktree` (reached through the menus), Geist, and `workspace-chrome` icons (`spinner`, `chevron-down/right`, `pin`, `pin-off`, `clock`, `layers`, `check`, `plus`, `branch`, `monitor`, `server`). It also uses `mods/pane/close.svg`, `mods/files/file.svg` and `mods/changes/changes.svg`.
+- **`programs.json`.** Merge entries for `omp` (name "OMP", tile `#f3a9bd`, `run: ["omp"]`) and `omo` (name "OMO", tile `#71d5df`, `run: ["omo"]`). Both use `personal-icons/retro-agent.svg` with `tint: false`. Claude Code and Codex use Herdr's built-in entries. Agent identity is generic: a card names the program from Herdr's table, and falls back to the agent's reported `app` when the table doesn't know it.
+- **Keys.** No `keys.json` is packaged. Keep the person's own keybindings.
+- **Status protocol.** Programs report through [OSC 7501](https://www.superlogical.com/rex/docs/build/program-status): colon-separated `key=value` pairs, not JSON; `state` is required, `app` identifies the program, and `msg`/`title` are base64 UTF-8. For example, `ESC ] 7501 ; state=working:app=codex ST`. Herdr exposes the parsed state as `a.status`; the layout reads it rather than guessing from terminal text.
+- **Reusing the art.** The exact sprites and font files are included at their paths in this repository. A rebuild in an empty folder can reuse those assets from [pokemon-herdr](https://github.com/anthonymq/pokemon-herdr), retaining the font notices. Build the native UI from this brief; do not substitute the screenshot for working elements.
+
+## Watch out
+
+- Herdr's shipped mods are read-only. Build the five mods under these new names, and don't edit `spaces`, `agents`, `tabs` or `pane` in place.
+- Every mod decides compact mode from the `sidebar` node's `size.px` (under 160) in `layout()`, not from a flag. The console uses its own measured width instead. Keep the node id `sidebar`, plus `panel`, `panel-body`, `files` and `changes`, which the tabs mod drives by id.
+- Fonts are referenced by family name and loaded from `pokedex-spaces/fonts`. Keep that folder, or the pixel type falls back. The comment in `pokedex-pane` mentions `retropet-spaces/fonts`, which is stale.
+- The shared step key is still named `retro-pokemon.steps`, and it's keyed by space name. Renaming a space can therefore change its Pokemon.
+- The hashed list isn't sorted (it ends 393, 390, 387). Keep that order, or every project's Pokemon changes.
+- `herdr-app check` covers the first render only. The sort popup, hover pins, sub-agent rows, folded groups and machine states need a look in the running app.
+- Agents inside tmux, and older agents, may not report status and won't appear as cards.
+- Don't put Pokedex or POKEDEX with an accented e in user-facing text. The agents header does read "POKÉMON / AGENTS".
+- The footer has only Settings. Earlier builds had an "Original" button and pane-focus arrows there, and both were removed. Don't add them back.
+- Normal tabs display their names or ordinal numbers. Only a legacy name matching `tb` followed by digits is replaced by the program name; do not assume all unnamed tabs show the program name.
+- Herdr regenerates `gpui-kit.d.ts`, `herdr.d.ts` and `jsconfig.json` in each mod. Leave them out of the package.
+- The sprites and Pokemon names are third-party artwork. This package grants no rights to them.
+
+## Done when
+
+- `herdr-app check` passes for `pokedex-console`, `pokedex-spaces`, `pokedex-agents`, `pokedex-tabs` and `pokedex-pane`.
+- `herdr-app do layout.switch --name pokedex` shows the red sidebar with POKEDEX, PROJECTS / SPACES, POKEMON cards and a footer with only Settings.
+- Clicking the sensor opens the palette, and Settings opens Look settings.
+- An agent that reports working, blocked, done and idle shows each animation, word and mark, and the status strip counts change to match.
+- Clicking a Pokemon scene changes the sprite for every agent in that space, and the same space name gets the same Pokemon after a restart.
+- Priority and Grouped sorts both work. A pin moves a card under PINNED, and sub-agents appear in a tree under their parent.
+- Dragging the sidebar under 160 px gives numbered rail cells, and "»" brings back the previous width.
+- FILES and CHANGES open the side panel, and switching spaces restores each space's choice.
+- Hovering a pane header shows split, zoom and close, and they act on that pane.

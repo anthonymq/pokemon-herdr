@@ -1,0 +1,18 @@
+{
+  "programs": {
+    "omp": {
+      "name": "OMP",
+      "icon": "personal-icons/retro-agent.svg",
+      "tint": false,
+      "tile": "#f3a9bd",
+      "run": ["omp"]
+    },
+    "omo": {
+      "name": "OMO",
+      "icon": "personal-icons/retro-agent.svg",
+      "tint": false,
+      "tile": "#71d5df",
+      "run": ["omo"]
+    }
+  }
+}

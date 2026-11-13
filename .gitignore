@@ -1,0 +1,9 @@
+.DS_Store
+**/.DS_Store
+
+# Herdr generates editor declarations/configuration while loading mods.
+mods/*/gpui-kit.d.ts
+mods/*/herdr.d.ts
+mods/*/jsconfig.json
+mods/*/*.error
+node_modules/

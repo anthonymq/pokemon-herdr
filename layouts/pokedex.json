@@ -1,0 +1,133 @@
+{
+  "id": "root",
+  "type": "row",
+  "titlebar": "none",
+  "traffic_lights": [12, 16],
+  "preview": "layouts/pokedex.svg",
+  "background": "#9b293a",
+  "colors": {
+    "canvas": "#17251f",
+    "chrome": "#9b293a",
+    "accent": "#71d5df",
+    "working": "#71d5df",
+    "blocked": "#ffd07a",
+    "done": "#b9dc92"
+  },
+  "terminal_padding": [14, 12],
+  "divider": { "width": 3, "color": "#641b2b" },
+  "children": [
+    {
+      "id": "sidebar",
+      "type": "column",
+      "size": { "px": 300 },
+      "min": 76,
+      "max": 440,
+      "background": "#9b293a",
+      "children": [
+        {
+          "id": "brand",
+          "type": "block",
+          "size": { "px": 124 },
+          "window_drag": true,
+          "content": { "mod": "pokedex-console", "props": { "role": "brand" } }
+        },
+        {
+          "id": "sidebar-lists",
+          "type": "column",
+          "children": [
+            {
+              "id": "spaces",
+              "type": "block",
+              "size": { "weight": 0.9 },
+              "min": 120,
+              "content": { "mod": "pokedex-spaces" }
+            },
+            {
+              "id": "agents",
+              "type": "block",
+              "size": { "weight": 1.4 },
+              "min": 160,
+              "content": { "mod": "pokedex-agents" }
+            }
+          ],
+          "divider": { "width": 3, "color": "#641b2b" }
+        },
+        {
+          "id": "sidebar-footer",
+          "type": "block",
+          "size": { "px": 48 },
+          "content": { "mod": "pokedex-console", "props": { "role": "footer" } }
+        }
+      ]
+    },
+    {
+      "id": "work",
+      "type": "column",
+      "resizable": false,
+      "children": [
+        {
+          "id": "tabs",
+          "type": "block",
+          "size": { "px": 48 },
+          "window_drag": true,
+          "content": { "mod": "pokedex-tabs" }
+        },
+        {
+          "id": "work-body",
+          "type": "row",
+          "padding": 10,
+          "gap": 10,
+          "background": "#812535",
+          "children": [
+            {
+              "id": "main",
+              "type": "block",
+              "content": {
+                "tab": "active",
+                "pane": {
+                  "gap": 10,
+                  "radius": 8,
+                  "background": "background",
+                  "border": { "width": 2, "color": "#4c302d" },
+                  "focus": { "width": 2, "color": "#71d5df" },
+                  "header": {
+                    "content": { "mod": "pokedex-pane" },
+                    "height": 34,
+                    "position": "top",
+                    "reveal": "always"
+                  },
+                  "lone": true
+                }
+              }
+            },
+            {
+              "id": "panel",
+              "type": "column",
+              "hidden": true,
+              "size": { "px": 368 },
+              "min": 280,
+              "max": 900,
+              "children": [
+                {
+                  "id": "panel-body",
+                  "type": "stack",
+                  "active": "files",
+                  "children": [
+                    { "id": "files", "type": "block", "content": { "mod": "files" } },
+                    { "id": "changes", "type": "block", "content": { "mod": "changes" } }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "status",
+          "type": "block",
+          "size": { "px": 30 },
+          "content": { "mod": "pokedex-console", "props": { "role": "status" } }
+        }
+      ]
+    }
+  ]
+}

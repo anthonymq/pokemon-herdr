@@ -1,0 +1,8 @@
+{
+  "place": "none",
+  "title": "Pixel Pane header",
+  "cloned_from": {
+    "name": "retropet-pane",
+    "version": "0.1.15"
+  }
+}
