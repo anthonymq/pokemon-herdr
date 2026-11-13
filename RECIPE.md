@@ -20,7 +20,7 @@ The window has no system title bar. On macOS the window buttons sit at 12, 16 px
    - a level line: "Lv<n>" in 12 px pixel type and a 4 px XP bar (`#244438` fill on a 1 px ink outline) showing progress to the next level.
    - Sub-agents sit under their parent as 24 px LCD strips joined by tree lines: a 14 px Pokemon, the name and a status mark.
    - With no agents, a "NO DATA" card explains that agents appear when they report status, and that older versions and agents inside tmux may not.
-4. **Footer (48 px).** Red with a 2 px `#641b2b` top line. It holds the trainer strip, a 26 px LCD chip filling the width: "TR<level>" in 14 px pixel type, a streak "♨<days>" (`#b4472f` when the streak is alive), then eight 7 px badge pips in each badge's color (dimmed ink when locked). After it is a "Settings" button (72 x 26 px, `#e8797d` border).
+4. **Footer (48 px).** Red with a 2 px `#641b2b` top line. It holds the trainer strip, a 26 px LCD chip filling the width: "TR<level>" in 14 px pixel type, a streak "♨<days>" (`#b4472f` when the streak is alive), then the eight badge sprites at 13 px (25% opacity when locked). After it is a "Settings" button (72 x 26 px, `#e8797d` border).
 
 **Work area, top to bottom**
 
@@ -56,7 +56,7 @@ A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: i
 - **Shinies.** Every new catch has a 1 in 8 chance to be shiny at a 7-day streak and 1 in 4 at 30 days. Shiny cards in the collection get a 2 px gold `#e8c35a` border and a "✦ SHINY" tag.
 - **Wild encounters.** Each finished task has a 15% chance (when none is waiting) to spawn a random Gen 1 Pokemon; legendaries (#144-146, #150, #151) need a second roll. A toast "A wild <Name> appeared!" lasts 60 s and runs `mod.open pokedex-encounter` when clicked. The 340 x 340 encounter dialog shows the bobbing sprite, its catch rate and 3 Poke Balls: 60% for basic and middle forms, 35% for final forms, 3% for legendaries. "Throw Poke Ball" says Gotcha!, broke free or fled; "Run" clears it. After 60 s it's gone.
 - **Badges.** Eight Kanto badges, each announced by a toast when earned: Boulder (10 caught), Cascade (50 tasks), Thunder (first evolution), Rainbow (3-day streak), Soul (75 caught), Marsh (500 tasks), Volcano (30-day streak), Earth (all 151).
-- **Trainer card.** Clicking the footer strip opens `pokedex-trainer` as a 560 x 520 dialog: TRAINER LV (sum of partner levels), CAUGHT n/151, TASKS DONE, STREAK ("<n>d (best <m>)"), the badge row (filled circles when earned, dimmed outlines when locked, goal in a tooltip), and up to six partners by XP with sprite, project, name, XP bar and level.
+- **Trainer card.** Clicking the footer strip opens `pokedex-trainer` as a 560 x 520 dialog: TRAINER LV (sum of partner levels), CAUGHT n/151, TASKS DONE, STREAK ("<n>d (best <m>)"), the badge row (the real Kanto badge art at 36 px, 25% opacity when locked, goal in a tooltip), and up to six partners by XP with sprite, project, name, XP bar and level.
 
 **Agents list.**
 - Clicking a card focuses its pane. Clicking a sub-agent strip focuses it if it has a pane, and otherwise peeks at it.
@@ -97,7 +97,7 @@ A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: i
     - `status` block, 30 px, `pokedex-console` with `{ role: "status" }`
 - **`layouts/pokedex.svg`.** The settings preview.
 - **Eight mods.** All have `place: "none"`. Herdr refuses imports from another mod's folder, so each mod that plays keeps identical copies of `game.js` (the rules) and `pokemon.js` (names): `pokedex-agents`, `pokedex-console`, `pokedex-collection`, `pokedex-trainer` and `pokedex-encounter`.
-  - `pokedex-trainer` is the trainer card dialog (`mod.json` overlay dialog 560 x 520). It reads `pokedex.game`, `pokedex.caught` and `pokedex.partners`.
+  - `pokedex-trainer` is the trainer card dialog (`mod.json` overlay dialog 560 x 520). It holds `badges/` with the eight Kanto badge PNGs (`boulder.png` to `earth.png`, 75-85 px, from the PokeAPI sprites repository `sprites/badges/1-8.png`); the console strip reads them from there too. It reads `pokedex.game`, `pokedex.caught` and `pokedex.partners`.
   - `pokedex-encounter` is the wild encounter dialog (`mod.json` overlay dialog 340 x 340), opened by `mod.open` from the encounter toast. It calls `throwBall()` and `runAway()`.
   - `pokedex-console` draws three roles from `props().role`: `brand`, `footer` and `status` (it defaults to brand). It reads `agents()`, `spaces()`, `focused()` and the game state, runs `app.palette` and `app.settings {section: "look"}`, and opens `pokedex-trainer`. It measures its own width with `on_size_change` and goes compact under 160 px.
   - `pokedex-spaces` was cloned from Herdr's spaces mod (via `retropet-spaces`). It uses `spaces()`, `machines()`, `panes()`, `window()`, `layout()` and `shared("space.colors")`. It runs `exec("git", ...)` (`status --porcelain=v2 --branch`, `rev-parse`) locally or on the space's machine, and `hc machine ls/rm/add`. It uses `watchFolder` on local repos, `space.select`, `space.move`, `space.new` and `openOverlay` of the shipped `menu`. Its timers run at 250 ms (cheap change check) and 15 s (machines). It holds `fonts/` and `art/` (`monitor.svg`, `server.svg`, `dither.svg`).

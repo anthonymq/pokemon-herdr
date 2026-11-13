@@ -1,4 +1,4 @@
-import { View, div } from "gpui-kit";
+import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, props, run, spaces, shared, openOverlay } from "herdr";
 import { game, trainerLevel, liveStreak, BADGES, CAUGHT } from "./game.js";
@@ -63,7 +63,7 @@ export default class PokedexConsole extends View {
   trainer(compact) {
     const g = game();
     const streak = liveStreak(g);
-    return h_flex().id("pokedex-trainer-open").flex_1().min_w(0).h(26).px(8).gap(7).items_center()
+    return h_flex().id("pokedex-trainer-open").flex_1().min_w(0).h(26).px(8).gap(4).items_center()
       .rounded(4).bg(C.lcd).text_color(C.ink).text_size(11).cursor_pointer()
       .tooltip(`Trainer Lv ${trainerLevel(g)} \u00b7 ${(shared(CAUGHT) ?? []).length}/151 caught \u00b7 ${g.tasks} tasks \u00b7 open trainer card`)
       .hover(s => s.bg("#c8dca6"))
@@ -73,8 +73,8 @@ export default class PokedexConsole extends View {
       .when(!compact, el => el
         .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(`\u2668${streak}`))
         .child(div().flex_1())
-        .children(BADGES.map(b => div().size(7).flex_none().rounded(4)
-          .bg(g.badges.includes(b.id) ? b.color : C.ink + "33"))));
+        .children(BADGES.map(b => image(`mods/pokedex-trainer/badges/${b.id}.png`).size(13).flex_none()
+          .when(!g.badges.includes(b.id), el => el.opacity(0.25)))));
   }
 
   footer(compact) {

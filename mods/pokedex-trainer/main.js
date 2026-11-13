@@ -19,8 +19,8 @@ export default class PokedexTrainer extends View {
 
   badge(b, earned) {
     return v_flex().id(`badge-${b.id}`).flex_1().gap(4).items_center().tooltip(`${b.name} Badge \u00b7 ${b.goal}`)
-      .child(div().size(30).rounded(15).border(2).border_color(earned ? C.cream : C.border)
-        .bg(earned ? b.color : C.panel).when(!earned, el => el.opacity(0.5)))
+      .child(image(`mods/pokedex-trainer/badges/${b.id}.png`).size(36).flex_none()
+        .when(!earned, el => el.opacity(0.25)))
       .child(div().text_size(10).text_color(earned ? C.cream : C.muted).child(b.name));
   }
 
