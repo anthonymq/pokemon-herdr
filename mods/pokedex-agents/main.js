@@ -18,9 +18,9 @@ const INK = { soft: SCREEN + "b3", dim: SCREEN + "80", line: SCREEN + "59", wash
 const LABEL = { soft: CREAM + "b3", line: CREAM + "66" };
 const PX = "PxPlus IBM VGA 8x16"; // the pixel heading font, loaded from pokedex-spaces/fonts
 // At zoom 1: the scene a Pokémon stands in, its sprite (96 px art at half size stays crisp), the card around it.
-const SCENE = 58;
-const SPRITE = 48;
-const CARD = 88; // the scene and level bar, 6 px of padding and a 1.5 px border
+const SCENE = 46;
+const SPRITE = 40;
+const CARD = 62; // name, task, status and a 3 px XP strip; 5 px of padding and a 1.5 px border
 const STATUS_WORD = { working: "WORKING", blocked: "NEEDS YOU", done: "DONE", idle: "IDLE" };
 
 function find(node, id) {
@@ -123,11 +123,10 @@ function petScene(a) {
   return div().id(`pet-${a.address}`).relative().size(SCENE).flex_none()
     .flex().items_center().justify_center()
     .bg(INK.wash).border(1.5).border_color(INK.line).rounded(3).cursor_pointer()
-    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to change partner; right-click to open the collection`)
+    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to choose a partner from your catches; right-click to open the collection`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
-      const partners = shared("pokedex.partners") ?? {};
-      setShared("pokedex.partners", { ...partners, [a.space_name]: POKEMON[projectPet(a.space_name)] % 151 + 1 });
+      openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
     })
     .on_mouse_down("right", (_e, cx) => {
       cx.stop_propagation();
@@ -258,13 +257,11 @@ export default class Agents extends View {
         .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)));
   }
 
-  // The partner's level and its XP toward the next one, LCD style.
+  // The partner's XP toward its next level: a thin strip under the status line.
   levelBar(project) {
-    const { level, into } = progress(game().xp[project]);
-    return h_flex().px(3).gap(5).items_center()
-      .child(div().flex_none().font_family(PX).text_size(12).line_height("12px").text_color(SCREEN).child(`Lv${level}`))
-      .child(div().flex_1().h(4).rounded(2).bg(INK.wash).border(1).border_color(INK.line)
-        .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, el => el.w(`${Math.round(into * 100)}%`))));
+    const { into } = progress(game().xp[project]);
+    return div().mx(3).h(3).flex_none().rounded(2).bg(INK.line)
+      .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, el => el.w(`${Math.round(into * 100)}%`)));
   }
 
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
@@ -463,7 +460,7 @@ export default class Agents extends View {
       const program = programName(a);
       return h_flex()
         .id(`ag-${a.address}`)
-        .p(6)
+        .p(5)
         .h(CARD)
         .flex_none()
         .gap(8)
@@ -481,11 +478,13 @@ export default class Agents extends View {
         })
         .on_click(() => run("pane.focus", { pane: a.pane }))
         .child(petScene(a))
-        .child(v_flex().flex_1().min_w(0).gap(3)
-          // The name line, inverted on the selected card the way an LCD menu marks its cursor.
-          .child(h_flex().h(18).px(3).gap(4).items_center().rounded(2).when(on, el => el.bg(SCREEN))
+        .child(v_flex().flex_1().min_w(0).gap(1)
+          // The name line, inverted on the selected card the way an LCD menu marks its cursor; the level sits at its end.
+          .child(h_flex().h(16).px(3).gap(4).items_center().rounded(2).when(on, el => el.bg(SCREEN))
             .child(div().flex_1().min_w(0).truncate().font_family(PX).text_size(16).line_height("16px").text_color(on ? LCD : SCREEN).child(name))
-            .when(this.hovered === a.address, el => el.child(pin)))
+            .when(this.hovered === a.address, el => el.child(pin))
+            .child(div().flex_none().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : INK.soft)
+              .child(`Lv${progress(game().xp[a.space_name]).level}`)))
           .when(Boolean(task), el => el.child(div().px(3).truncate().text_size(11.5).text_color(INK.soft).child(task)))
           .child(h_flex().px(3).gap(5).items_center().text_size(10.5)
             .child(this.status(a, true))

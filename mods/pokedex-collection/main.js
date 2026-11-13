@@ -5,6 +5,7 @@ import { POKEMON } from "./pokemon.js";
 import { game } from "./game.js";
 
 const CAUGHT = "pokedex.caught";
+const PARTNERS = "pokedex.partners";
 const C = {
   screen: "#17251f", panel: "#244438", border: "#67866c",
   lcd: "#d9e8bc", ink: "#244438", cream: "#f7eed7",
@@ -17,7 +18,10 @@ export default class PokedexCollection extends View {
   init(_props, cx) {
     const selected = props()?.pokemon;
     this.query = isGen1(selected) ? String(selected) : "";
-    this.caughtOnly = false;
+    // Opened from an agent's scene with { project, partner }: a partner picker over the caught Pokemon.
+    this.project = props()?.project ?? null;
+    this.partner = props()?.partner ?? null;
+    this.caughtOnly = Boolean(this.project);
     this.width = 820;
     this.error = "";
     this.input = InputState.new({
@@ -86,7 +90,7 @@ export default class PokedexCollection extends View {
     const number = /^\d+$/.test(query) ? Number(query) : null;
     const caught = this.caught();
     return POKEMON.filter(p =>
-      (!this.caughtOnly || caught.includes(p.id)) &&
+      (!(this.caughtOnly || this.project) || caught.includes(p.id)) &&
       (!query || (number !== null ? p.id === number : p.name.toLowerCase().includes(query))));
   }
 
@@ -98,15 +102,26 @@ export default class PokedexCollection extends View {
       .hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
   }
 
+  choose(id) {
+    setShared(PARTNERS, { ...(shared(PARTNERS) ?? {}), [this.project]: id });
+    closeOverlay(props().overlay);
+  }
+
   card(p, caught, shiny) {
     const selected = caught.includes(p.id);
     const gold = shiny.includes(p.id);
+    const partner = Boolean(this.project) && p.id === this.partner;
     return v_flex().id(`pokemon-${p.id}`).flex_1().min_w(0).h(126)
       .p(8).gap(3).items_center().rounded(5).border(1)
       .border_color(gold ? "#e8c35a" : selected ? C.cyan : C.border).when(gold, el => el.border(2))
       .bg(selected ? C.lcd : C.panel).text_color(selected ? C.ink : C.cream)
+      .when(partner, el => el.border(2).border_color(C.housing))
+      .when(Boolean(this.project) && selected && !partner, el => el.cursor_pointer()
+        .hover(s => s.border_color(C.housing))
+        .on_click(() => this.choose(p.id)))
       .child(h_flex().w_full().h(12).justify_between().items_center()
         .child(div().text_size(10).child(`#${String(p.id).padStart(3, "0")}`))
+        .when(partner, el => el.child(div().text_size(10).font_bold().text_color(C.housing).child("PARTNER")))
         .when(gold, el => el.child(div().text_size(10).font_bold().text_color("#a07c12").child("\u2726 SHINY")))
         .when(selected, el => el.child(svg("mods/workspace-chrome/check.svg").size(12))))
       .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(48).flex_none())
@@ -134,7 +149,8 @@ export default class PokedexCollection extends View {
         cx.notify();
       })
       .child(h_flex().h(34).flex_none().gap(10).items_center()
-        .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23).child("KANTO POKEDEX"))
+        .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23)
+          .child(this.project ? `CHOOSE PARTNER \u00b7 ${this.project.toUpperCase()}` : "KANTO POKEDEX"))
         .child(div().px(10).h(28).rounded(4).bg(C.lcd).text_color(C.ink)
           .text_size(13).font_semibold().flex().items_center().child(`Caught ${caught.length} / 151`))
         .when(Boolean(props()?.overlay), el => el.child(div().id("collection-close").size(28)
@@ -143,7 +159,9 @@ export default class PokedexCollection extends View {
           .on_click(() => closeOverlay(props().overlay))
           .child(svg("mods/pane/close.svg").size(13)))))
       .child(div().flex_none().text_size(12).text_color(C.muted)
-        .child("Gen 1 only. A Pokemon is caught when an agent opens in its project."))
+        .child(this.project
+          ? "Pick one of your caught Pokemon. It takes over this project's level and XP."
+          : "Gen 1 only. A Pokemon is caught when an agent opens in its project."))
       .child(div().h(4).w_full().flex_none().rounded(2).bg(C.panel)
         .child(div().h_full().rounded(2).bg(C.cyan)
           .w(Math.max(0, this.width - 32) * caught.length / 151)))
@@ -151,10 +169,11 @@ export default class PokedexCollection extends View {
         .child(Input.new(this.input).flex_1().min_w(0).h_full().px(10)
           .rounded(5).border(1).border_color(C.border).bg(C.panel)
           .text_size(13).text_color(C.cream))
-        .child(this.filterButton("collection-all", "All 151", !this.caughtOnly,
-          (_event, cx) => { this.caughtOnly = false; cx.notify(); }))
-        .child(this.filterButton("collection-caught", "Caught", this.caughtOnly,
-          (_event, cx) => { this.caughtOnly = true; cx.notify(); })))
+        .when(!this.project, el => el
+          .child(this.filterButton("collection-all", "All 151", !this.caughtOnly,
+            (_event, cx) => { this.caughtOnly = false; cx.notify(); }))
+          .child(this.filterButton("collection-caught", "Caught", this.caughtOnly,
+            (_event, cx) => { this.caughtOnly = true; cx.notify(); }))))
       .child(div().h(18).flex_none().text_size(11)
         .text_color(this.error ? "#ffb9b1" : C.muted)
         .child(this.error || "Saved on this device."))
