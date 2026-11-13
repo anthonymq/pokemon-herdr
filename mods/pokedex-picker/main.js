@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex, InputState, Input } from "gpui-base";
-import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, openOverlay, shared, setShared, home } from "herdr";
+import { agents, spaces, terminals, run, hc, theme, settings, props, closeOverlay, openOverlay, shared, setShared, home, exec } from "herdr";
 
 const MARK = { ansi6: "#22a99a", ansi3: "#e3814f", ansi4: "#5b8def", ansi5: "#8b7cf6", ansi2: "#3fae6a", ansi1: "#d9649a" };
 
@@ -45,8 +45,11 @@ export default class Picker extends View {
   init(_props, cx) {
     this.filter = "";
     this.input = InputState.new({ placeholder: "Go to a tab, space or agent…" });
+    // zoxide's best folders for the typed words, used when nothing here matches: { query, dirs }.
+    this.zoxide = { query: "", dirs: [] };
     this.input.on("change", (_e, cx) => {
       this.filter = this.input.value();
+      this.askZoxide(cx);
       this.at = this.filter ? Math.max(0, this.rows().filter(r => r.kind !== "head").findIndex(r => r.kind === "ctx")) : 0;
       cx.notify();
     });
@@ -69,6 +72,28 @@ export default class Picker extends View {
 
   close() {
     closeOverlay(props().overlay);
+  }
+
+  // Like `z <words>`: zoxide's ranked folders for the typed words (a path typed outright needs no lookup).
+  // An answer that arrives after the text changed again is dropped.
+  askZoxide(cx) {
+    const query = this.filter.trim();
+    if (!query || /^(~(\/|$)|\/)/.test(query)) {
+      this.zoxide = { query, dirs: [] };
+      return;
+    }
+    cx.spawn(async (cx) => {
+      let dirs = [];
+      try {
+        const r = await exec("zoxide", ["query", "--list", "--", ...query.split(/\s+/)], { timeout: 3000 });
+        if (r.code === 0) dirs = r.stdout.split("\n").filter(Boolean).slice(0, 5);
+      } catch (error) {
+        console.log(`pokedex-picker: zoxide unavailable, new spaces use the typed name: ${error}`);
+      }
+      if (this.filter.trim() !== query) return;
+      this.zoxide = { query, dirs };
+      cx.notify();
+    });
   }
 
   rows() {
@@ -94,9 +119,14 @@ export default class Picker extends View {
     const quiet = groups.filter((p) => !p.w.status && p.ctxs.length);
     busy.sort((a, b) => (b.w.status === "blocked") - (a.w.status === "blocked"));
     const out = [];
-    // Typed text that matches no tab or space offers a new space, first so Enter takes it.
+    // Typed text that matches no tab or space offers a new space, first so Enter takes it: in zoxide's best
+    // folders for the words (best first), else in a path typed outright, else named after the text.
     const typed = this.filter.trim();
-    if (typed && !groups.some((p) => p.ctxs.length)) out.push({ kind: "create", text: typed });
+    if (typed && !groups.some((p) => p.ctxs.length)) {
+      const dirs = this.zoxide.query === typed ? this.zoxide.dirs : [];
+      if (dirs.length) for (const dir of dirs) out.push({ kind: "create", text: dir });
+      else out.push({ kind: "create", text: typed });
+    }
     // One line per tab: each row carries its space (Pokemon and name), so spaces get no title rows.
     const add = (p) => {
       for (const c of p.ctxs) out.push({ kind: "ctx", ...c });
@@ -208,8 +238,9 @@ export default class Picker extends View {
       const on = r === sel;
       if (r.kind === "create") {
         const path = /^(~(\/|$)|\/)/.test(r.text);
+        const shown = path && r.text.startsWith(home()) ? `~${r.text.slice(home().length)}` : r.text;
         return h_flex()
-          .id("pk-create")
+          .id(`pk-create-${r.text}`)
           .mx(4)
           .px(10)
           .h(32)
@@ -222,8 +253,8 @@ export default class Picker extends View {
           .on_click(() => this.go(r))
           .child(div().w(12).text_color(t.accent).child("+"))
           .child(div().flex_none().text_color(t.muted).child(path ? "new space in" : "new space"))
-          .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(t.foreground).child(r.text))
-          .child(div().flex_none().text_size(11).text_color(t.dim).child("Enter"));
+          .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(t.foreground).child(shown))
+          .when(on, (el) => el.child(div().flex_none().text_size(11).text_color(t.dim).child("Enter")));
       }
       if (r.kind === "new" || r.kind === "space") {
         const label = r.kind === "new" ? "new tab" : r.machine ? `new space on ${r.machine}` : "new space";
