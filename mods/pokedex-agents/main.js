@@ -581,7 +581,9 @@ export default class Agents extends View {
       const when = this.since(a);
       const program = programName(a);
       const { level, into } = progress(game().xp[projectKey(a.space_name)]);
-      const tip = [a.space_name || label(a), detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
+      // An agent on another machine has a machine-qualified address (`vps/t7`).
+      const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
+      const tip = [a.space_name || label(a), machine ? `on ${machine}` : "on this computer", detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
         subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${level}`].filter(Boolean).join(" \u00b7 ");
       const pin = div().id(`pin-${a.address}`).flex_none().rounded(2).text_color(INK.dim).cursor_pointer()
         .hover((s) => s.text_color(SCREEN))
@@ -634,7 +636,13 @@ export default class Agents extends View {
             .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, (el) => el.w(`${Math.round(into * 100)}%`)))))
         // Status, pin and sub-agent count float over the sprite's top corners instead of taking a row.
         .child(h_flex().absolute().top(3).left(4).right(4).h(14).items_center().justify_between()
-          .child(h_flex().gap(3).items_center()
+          .child(h_flex().flex_1().gap(3).items_center()
+            // A remote agent wears a dark chip with the server icon and its machine's name. The chip keeps
+            // its own width (min_w(0) would let the row squeeze it to nothing); long names truncate inside.
+            .when(Boolean(machine), (el) => el.child(h_flex().flex_none().h(13).px(3).gap(2).items_center().rounded(2)
+              .bg(SCREEN).text_color(LCD)
+              .child(svg("mods/pokedex-spaces/art/server.svg").size(9).flex_none())
+              .child(div().max_w(42).truncate().text_size(8.5).font_bold().child(machine))))
             .when(this.hovered === a.address || a.pinned, (el) => el.child(pin))
             .when(subs.length > 0, (el) => el.child(div().text_size(9.5).font_bold().text_color(INK.soft).child(`+${subs.length}`))))
           .child(this.status(a, true)));
