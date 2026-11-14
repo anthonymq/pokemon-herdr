@@ -12,10 +12,13 @@ const PIXEL = "PxPlus IBM VGA 8x16";
 // The trainer card: totals, encounter record, the eight Kanto badges, recent catches and every
 // project's partner with its level.
 export default class PokedexTrainer extends View {
-  stat(label, value) {
+  // A tile's number stays whole; `note` (a second, smaller figure) sits beside it and is what shortens.
+  stat(label, value, note) {
     return v_flex().flex_1().min_w(0).p(10).gap(2).rounded(5).bg(C.panel).border(1).border_color(C.border)
       .child(div().text_size(10).text_color(C.muted).child(label))
-      .child(div().truncate().font_family(PIXEL).text_size(20).text_color(C.cream).child(String(value)));
+      .child(h_flex().min_w(0).gap(5).items_end()
+        .child(div().flex_none().font_family(PIXEL).text_size(20).text_color(C.cream).child(String(value)))
+        .when(Boolean(note), el => el.child(div().flex_1().min_w(0).truncate().pb(4).text_size(10).text_color(C.muted).child(note))));
   }
 
   badge(b, earned) {
@@ -48,8 +51,8 @@ export default class PokedexTrainer extends View {
       .child(h_flex().flex_none().gap(8)
         .child(this.stat("TRAINER LV", trainerLevel(g)))
         .child(this.stat("CAUGHT", `${caught.length}/151`))
-        .child(this.stat("TASKS", `${g.tasks} + ${g.subtasks} sub`))
-        .child(this.stat("STREAK", `${liveStreak(g)}d (best ${g.streak.best})`)))
+        .child(this.stat("TASKS", g.tasks, `+${g.subtasks} sub`))
+        .child(this.stat("STREAK", `${liveStreak(g)}d`, `best ${g.streak.best}d`)))
       .child(h_flex().flex_none().gap(8)
         .child(this.stat("ENCOUNTERS", enc.seen))
         .child(this.stat("CAUGHT IN WILD", enc.caught))
