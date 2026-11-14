@@ -6,7 +6,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout } from "herdr";
+import { spaces, machines, panes, run, openOverlay, exec, hc, theme, shared, setShared, watchFolder, window, layout, home } from "herdr";
 
 function find(node, id) {
   if (node?.id === id) return node;
@@ -26,7 +26,8 @@ function place(s, ps) {
   const tabs = new Set((s.tabs ?? []).map((c) => c.id));
   return ps.find((p) => tabs.has(p.tab) && p.cwd)?.cwd || s.folder;
 }
-const rowHeight = ({ tree }) => (tree ? 28 : 32);
+// One tight line per space; its folder, repo and branch are in the row's tooltip.
+const rowHeight = ({ tree }) => (tree ? 26 : 28);
 const RAIL_CELL = 32;
 const railCell = (el) => h_flex().flex_none().justify_center().child(el);
 const where = (s, ps) => JSON.stringify([s.machine ?? null, place(s, ps)]);
@@ -283,7 +284,12 @@ export default class Spaces extends View {
     const sp = spaces(), ps = panes();
     const ready = (w) => this.shown.has(w.id) || where(w, ps) in this.git || Date.now() - (this.born[w.id] ??= Date.now()) > 1500;
     for (const w of sp) if (!this.shown.has(w.id) && ready(w)) this.shown.add(w.id);
-    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null }));
+    // Spaces of one machine with the same name are numbered in list order, so they can be told apart.
+    const total = {}, nth = {};
+    const same = (w) => JSON.stringify([w.machine ?? null, w.name]);
+    for (const w of sp) total[same(w)] = (total[same(w)] ?? 0) + 1;
+    const list = sp.map((w, i) => ({ w, i, g: this.git[where(w, ps)] ?? null, at: place(w, ps),
+      nth: total[same(w)] > 1 ? (nth[same(w)] = (nth[same(w)] ?? 0) + 1) : 0 }));
     const mains = new Set(list.filter((r) => r.g && !r.g.linked).map((r) => r.g.repo));
     const nested = (r) => r.g?.linked && mains.has(r.g.repo);
     const out = [];
@@ -400,22 +406,13 @@ export default class Spaces extends View {
   // Only what's unusual, after the name: "herdr \u00b7 spike \u21912 \u21931". The repo or
   // branch goes when the name already says it (a worktree is named after its branch),
   // and master/main go: nearly every space is on one.
-  gitTail(g, tree, name, on) {
-    const raw = g.branch ?? "detached";
-    const same = (a) => a.toLowerCase() === name.toLowerCase();
-    const branch = same(raw) || raw === "master" || raw === "main" ? "" : raw;
-    const repo = tree || same(g.name) ? "" : g.name;
-    const where = [repo, branch].filter(Boolean).join(" \u00b7 ");
+  gitArrows(g, on) {
     return h_flex()
-      .flex_1()
-      .min_w(0)
+      .flex_none()
       .gap(5)
-      .justify_end()
       .items_center()
       .font_family(PX)
       .text_size(14)
-      .text_color(on ? SCREEN : CREAM)
-      .when(Boolean(where), (el) => el.child(div().min_w(0).truncate().child(where)))
       .when(g.ahead > 0, (el) => el.child(div().flex_none().text_color(on ? SCREEN : LCD).child(`\u2191${g.ahead}`)))
       .when(g.behind > 0, (el) => el.child(div().flex_none().text_color(on ? SCREEN : "#ffd3a8").child(`\u2193${g.behind}`)));
   }
@@ -427,9 +424,13 @@ export default class Spaces extends View {
     return Number.isInteger(id) && id >= 1 && id <= 151 ? id : null;
   }
 
-  row({ w, i, g, tree }, t) {
+  row({ w, i, g, tree, at, nth }, t) {
     const on = w.active;
     const pet = tree ? null : this.partner(w);
+    const h = home();
+    const folder = at ? (at === h || at.startsWith(h + "/") ? "~" + at.slice(h.length) : at) : "";
+    const tip = [nth ? `${w.name} #${nth}` : w.name, folder, g ? [g.name, g.branch ?? "detached"].join(" · ") : "",
+      g && (g.ahead || g.behind) ? `↑${g.ahead} ↓${g.behind}` : ""].filter(Boolean).join("\n");
     const fromIndex = this.pressed === null ? -1 : spaces().findIndex(s => s.id === this.pressed);
     const colors = shared("space.colors") ?? {};
     const color = colors[w.id] ?? "ansi6";
@@ -442,6 +443,7 @@ export default class Spaces extends View {
       .h(rowHeight({ tree }))
       .flex_none()
       .justify_center()
+      .tooltip(tip)
       .border_l(3)
       .border_color(on ? TRIM : HOUSING)
       .when(on, (el) => el.bg(LCD))
@@ -486,10 +488,14 @@ export default class Spaces extends View {
           .when(Boolean(pet), el => el.child(div().id(`pet-${w.id}`).size(24).flex_none().overflow_hidden().flex().items_center().justify_center()
             .tooltip(`Partner: #${String(pet).padStart(3, "0")}`)
             .child(image(`mods/pokedex-agents/pokemon/${pet}.png`).size(32).flex_none())))
-          .child(div().flex_shrink(0).max_w(pet ? 112 : 140).truncate().font_family(PX).text_size(16).line_height("16px")
+          // The name takes the whole line; only what's short follows it.
+          .child(div().min_w(0).truncate().font_family(PX).text_size(16).line_height("16px")
             .text_color(on ? SCREEN : CREAM).child(w.name))
+          .when(Boolean(nth), el => el.child(div().flex_none().font_family(PX).text_size(14).line_height("16px")
+            .text_color(on ? SCREEN + "b3" : CREAM + "99").child(`#${nth}`)))
           .when(w.status === "blocked" || w.status === "done", el => el.child(div().flex_none().font_family(PX).text_size(16).text_color(on ? SCREEN : (w.status === "blocked" ? "#ffd3a8" : LCD)).child(w.status === "blocked" ? "!" : "*")))
-          .child(g ? this.gitTail(g, tree, w.name, on) : div().flex_1()),
+          .child(div().flex_1())
+          .when(Boolean(g), el => el.child(this.gitArrows(g, on))),
       );
   }
 

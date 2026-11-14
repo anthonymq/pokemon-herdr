@@ -40,14 +40,14 @@
             {
               "id": "spaces",
               "type": "block",
-              "size": { "weight": 0.9 },
+              "size": { "weight": 1.5 },
               "min": 120,
               "content": { "mod": "pokedex-spaces" }
             },
             {
               "id": "agents",
               "type": "block",
-              "size": { "weight": 1.4 },
+              "size": { "weight": 1 },
               "min": 160,
               "content": { "mod": "pokedex-agents" }
             }

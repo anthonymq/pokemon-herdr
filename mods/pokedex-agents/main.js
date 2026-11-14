@@ -85,6 +85,8 @@ const SORTS = [
 const sortOf = () => SORTS.find((s) => s.id === shared("agents.sort")) ?? SORTS[0];
 const SECTION = { 4: "Needs you", 3: "Done", 2: "Working", 1: "Idle" };
 const SECTION_STATUS = { 4: "blocked", 3: "done", 2: "working" };
+const IDLE = "sec-1"; // the priority view's Idle section
+const IDLE_FEW = 6; // up to this many idle agents keep their full tiles; more become small sprites
 
 function duration(ms) {
   const m = Math.floor(ms / 60000);
@@ -152,6 +154,10 @@ export default class Agents extends View {
   init(_props, cx) {
     if (props()?.sortMenu) return;
     this.folded = new Set();
+    // The Idle section picks tiles or small sprites by how many there are (IDLE_FEW); a click on
+    // its heading shows the other until the count crosses the threshold again.
+    this.idleFlip = false;
+    this.idleMany = null;
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
     this.pendingPins = JSON.parse(localStorage.getItem("pins") ?? "[]");
@@ -598,6 +604,45 @@ export default class Agents extends View {
           .child(this.levelBar(a.space_name)));
     };
 
+    const tipOf = (a) => {
+      const subs = this.tree(all, a.address);
+      const when = this.since(a);
+      const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
+      return [a.space_name || label(a), machine ? `on ${machine}` : "on this computer", detail.get(a.address), STATUS_WORD[a.status], programName(a), when ? duration(now - when) : null,
+        subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${progress(game().xp[projectKey(a.space_name)]).level}`].filter(Boolean).join(" · ");
+    };
+
+    // An idle agent at rest: only its sprite, in a small LCD cell (36 px art in a 34 px window
+    // that crops the art's empty margin). The tooltip says the rest; click focuses it.
+    const MINI = 38;
+    const mini = (a) => div()
+      .id(`ag-${a.address}`)
+      .size(MINI)
+      .flex_none()
+      .flex()
+      .items_center()
+      .justify_center()
+      .overflow_hidden()
+      .bg(LCD)
+      .border(1.5)
+      .border_color(a.focused ? SCREEN : INK.line)
+      .rounded(4)
+      .cursor_pointer()
+      .tooltip(tipOf(a))
+      .hover((s) => s.border_color(a.focused ? SCREEN : INK.soft))
+      .on_click(() => run("pane.focus", { pane: a.pane }))
+      .on_mouse_down("right", (_e, cx) => {
+        cx.stop_propagation();
+        openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
+      })
+      .child(projectIcon(a.space_name, 44));
+    const miniGrid = (members) => {
+      const per = Math.max(1, Math.floor((inner + 5) / (MINI + 5)));
+      const out = [];
+      for (let i = 0; i < members.length; i += per) out.push(h_flex().flex_none().gap(5).children(members.slice(i, i + per).map(mini)));
+      return out;
+    };
+
     // A square tile: status, Pokemon, project name and level. Details live in the tooltip;
     // click focuses the agent, right-click chooses the project's partner.
     const tile = (a) => {
@@ -608,8 +653,7 @@ export default class Agents extends View {
       const { level, into } = progress(game().xp[projectKey(a.space_name)]);
       // An agent on another machine has a machine-qualified address (`vps/t7`).
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
-      const tip = [a.space_name || label(a), machine ? `on ${machine}` : "on this computer", detail.get(a.address), STATUS_WORD[a.status], program, when ? duration(now - when) : null,
-        subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${level}`].filter(Boolean).join(" \u00b7 ");
+      const tip = tipOf(a);
       const pin = div().id(`pin-${a.address}`).flex_none().rounded(2).text_color(INK.dim).cursor_pointer()
         .hover((s) => s.text_color(SCREEN))
         .tooltip(a.pinned ? "Unpin" : "Pin to the top")
@@ -696,10 +740,17 @@ export default class Agents extends View {
       else groups.push({ id, label: byPriority ? SECTION[r] : a.space_name || "", status: byPriority ? SECTION_STATUS[r] : null, members: [a] });
     }
 
+    const idleMany = (groups.find((g) => g.id === IDLE)?.members.length ?? 0) > IDLE_FEW;
+    if (idleMany !== this.idleMany) this.idleFlip = false;
+    this.idleMany = idleMany;
+    const idleMini = idleMany !== this.idleFlip;
+
     // A group's label on the housing: NAME, a count, a rule to the edge; it folds the group.
     // Folded, the most urgent state and a chevron at the end.
     const header = (g) => {
-      const open = !this.folded.has(g.id);
+      // The Idle section never folds away: its heading switches small sprites and full tiles.
+      const idle = g.id === IDLE;
+      const open = idle ? !idleMini : !this.folded.has(g.id);
       const top = g.members.reduce((m, a) => ((RANK[a.status] ?? 0) > (RANK[m] ?? 0) ? a.status : m), null);
       return h_flex()
         .id(g.id)
@@ -715,8 +766,10 @@ export default class Agents extends View {
         .text_color(LABEL.soft)
         .cursor_pointer()
         .hover((s) => s.text_color(CREAM))
+        .when(idle, (el) => el.tooltip(open ? "Show idle agents as small sprites" : "Show idle agents as full tiles"))
         .on_click((_e, cx) => {
-          open ? this.folded.add(g.id) : this.folded.delete(g.id);
+          if (idle) this.idleFlip = !this.idleFlip;
+          else open ? this.folded.add(g.id) : this.folded.delete(g.id);
           cx.notify();
         })
         .child(div().flex_none().max_w(170).truncate().child(g.label.toUpperCase()))
@@ -728,7 +781,8 @@ export default class Agents extends View {
     };
     const rows = collapsed
       ? list.flatMap(withKids)
-      : groups.flatMap((g) => [header(g), ...(this.folded.has(g.id) ? [] : viewOf() === "tiles" ? grid(g.members) : g.members.flatMap(withKids))]);
+      : groups.flatMap((g) => [header(g), ...(g.id === IDLE && idleMini ? miniGrid(g.members)
+        : this.folded.has(g.id) ? [] : viewOf() === "tiles" ? grid(g.members) : g.members.flatMap(withKids))]);
 
     // The housing: a header strip like the spaces list's (the lens, the label, the sort button;
     // in the rail only the button), the cards, and in the rail the way back out.

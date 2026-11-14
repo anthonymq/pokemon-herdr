@@ -124,7 +124,9 @@ export default class PokedexConsole extends View {
       ["working", "Working", t.working], ["idle", "Idle", t.idle],
     ].map(([status, label, color]) => {
       const list = all.filter(a => a.status === status);
-      return { status, label, color, count: list.length, first: list[0] };
+      // Each click goes to the one after the agent in front, so repeated clicks walk the list.
+      const at = list.findIndex(a => a.address === focused()?.terminal);
+      return { status, label, color, count: list.length, first: list[(at + 1) % list.length] };
     });
     const branch = spaces().find(s => s.active)?.branch;
     const g = this.git;
