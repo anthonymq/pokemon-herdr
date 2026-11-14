@@ -21,10 +21,12 @@ const BALL = { poke: "Poke Ball", great: ITEMS.great.name, ultra: ITEMS.ultra.na
 // A wild encounter, opened from its toast: three free Poke Balls, plus Great and Ultra Balls from the bag.
 // Every agent task finished while it waits weakens it (up to 3), raising the odds.
 export default class PokedexEncounter extends View {
-  init() {
+  init(_props, cx) {
     const e = game().encounter;
     this.wild = e && Date.now() - e.at <= ENCOUNTER_MS ? e.id : null;
     this.result = this.wild ? null : "gone";
+    // Redraw the moment it runs out of patience, so the balls go away with it.
+    if (this.wild) cx.timer.after(Math.max(0, e.at + ENCOUNTER_MS - Date.now()) + 50, (cx) => cx.notify());
   }
 
   button(id, label, onClick, primary, disabled = false) {
@@ -40,6 +42,9 @@ export default class PokedexEncounter extends View {
     const close = () => overlay && closeOverlay(overlay);
     const e = game().encounter;
     const name = this.wild ? nameOf(this.wild) : "";
+    // It fled while this was open (time ran out, or it was ended elsewhere): no more throws.
+    const here = e && e.id === this.wild && Date.now() - e.at <= ENCOUNTER_MS;
+    if (this.wild && !here && (!this.result || this.result === "missed" || this.result === "empty")) this.result = "fled";
     const done = this.result && this.result !== "missed" && this.result !== "empty";
     const bag = game().bag;
     const left = { poke: e?.balls ?? 0, great: bag.great ?? 0, ultra: bag.ultra ?? 0 };
