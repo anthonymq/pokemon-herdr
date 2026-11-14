@@ -1,64 +1,157 @@
-# pokemon-herdr
+# pokemon-herdr: Gotta Ship 'Em All
 
-A Pokedex-themed native coding workspace for [Herdr](https://herdr.dev):
-red device housing, a blue sensor, green LCD project navigation and Pokémon
-agent cards around your terminals. Partners level up and evolve as your
-agents finish tasks, wild Pokémon appear, and a trainer card tracks eight
-Kanto badges and a daily streak.
+**A [Herdr](https://herdr.dev) layout where every coding agent is a Pokémon, every project has a partner, and finishing work is how you fill the Pokédex.**
 
-![Pokedex layout](preview.png)
+![The Pokédex layout: six projects, each with a partner Pokémon; one agent working, one waiting on you](docs/hero.png)
 
-The preview is a native Herdr capture with isolated demo projects and
-representative terminal text.
+`pokedex` turns a wall of terminals and agents into a red Kanto Pokédex, then quietly turns the workday into a game.
 
-Build it from an empty folder using [RECIPE.md](RECIPE.md).
+The screenshots are native Herdr captures of a staged window: demo projects, scripted agents, no real work.
 
-The layout is named **pokedex**. It handles Herdr's generic agent model,
-including OMP, OMO, Claude Code, Codex and other reporting agents.
-The footer holds the trainer strip (level, streak, badges) and Settings.
+No agent finishes a task without something happening. XP lands. A partner levels up. Sometimes the screen flashes and a wild Snorlax is standing there, and you have 60 seconds.
 
-## Contents
+---
 
-- `layouts/pokedex.json` and its settings preview.
-- Ten custom mods (including `pokedex-picker`, a clone of Herdr's picker): `pokedex-console`, `pokedex-spaces`, `pokedex-agents`,
-  `pokedex-tabs`, `pokedex-pane`, `pokedex-collection`, `pokedex-trainer`
-  `pokedex-encounter` and `pokedex-toast` (wild encounters pop up as a
-  flashing battle card over the layout).
-- The game rules in `game.js` (XP, evolutions, streak, shinies, encounters,
-  badges). Herdr mods can't import across folders, so each mod that plays
-  carries an identical copy: edit `mods/pokedex-agents/game.js`, then run
-  `scripts/sync-game.sh` (`--check` verifies the copies match).
+## The 30-second tour
 
-## Gamification
+Everything in the screenshot above, region by region:
 
-- Each finished agent turn gives its project's partner 10 XP plus 5 per
-  minute it ran (up to 100); finished sub-agents give 10. Level n needs
-  4·n² XP; partners evolve at their Gen 1 levels (stone/trade at 30).
-  Progress follows the project's git repo, so renaming a space keeps it.
-- 15% of finished tasks spawn a wild Pokémon toast; click it, throw up to
-  three Poké Balls.
-- A daily streak counts days with a finished task; at 7 and 30 days new
-  catches can be shiny.
-- Badges: Boulder (10 caught), Cascade (50 tasks), Thunder (an evolution),
-  Rainbow (3-day streak), Soul (75 caught), Marsh (500 tasks), Volcano
-  (30-day streak), Earth (all 151).
-- Evolutions and badges play short original chiptune jingles (silent when
-  Herdr's sounds are off); level-ups are announced every 5 levels.
-- Click the footer strip for the trainer card. Progress is stored in your
-  own `shared.json` and counts only while Herdr is open.
-- 151 Gen 1 Pokémon sprites and names, pixel fonts with their license notices, and native icons.
-- `programs.json` with OMP/OMO launcher entries and their personal icon.
+| Where | What it is |
+|---|---|
+| **Top left** | The Pokédex lens and the brand plate. Drag it to move the window. |
+| **Projects / Spaces** | Every space, with its partner Pokémon beside its name. |
+| **Pokémon / Agents** | Every agent as a sprite on a pale LCD card: working, needs you, done, idle. Tiles, or cards with sub-agents. |
+| **Footer** | Trainer level, streak, and the badges you've earned. Click for the trainer card. |
+| **Right edge** | The alerts drawer. It peeks out as status dots; hover and it slides open with Jump, Peek and Pin. |
+| **Status bar** | The focused folder's git state and a count of who's working. |
+
+The layout is named **pokedex**. It works with any agent that reports its status to Herdr: Claude Code, Codex, OMP, OMO and others. Agents that don't report still work as ordinary terminals.
+
+---
+
+## The game
+
+It runs on real work. You can't grind it; you can only ship.
+
+### Partners and XP
+
+Every project has a partner Pokémon. When an agent in that project finishes a turn, the partner earns XP:
+
+- **10 XP** per finished turn, **+5 per minute** it ran, up to **100**
+- **10 XP** for each finished sub-agent
+- Level *n* costs `4 × n²` XP, so Lv16 is 1,024 XP and Lv100 is 40,000
+
+Partners **evolve at their real Gen 1 levels**. Charmander becomes Charmeleon at 16. Dratini makes you wait until 30, then 55. Magikarp is still Magikarp until 20.
+
+Stone and trade evolutions need the item: Fire, Water, Thunder, Leaf and Moon Stones, and a **Link Cable** for the four that used to need a friend.
+
+### Wild encounters
+
+Every finished task has a **15% chance** of a wild Pokémon. It stays for **60 seconds**.
+
+![A wild Charizard appeared, over the workspace](docs/wild-encounter.png)
+
+- You get **3 free Poké Balls**. Great Balls (×1.5) and Ultra Balls (×2) come from your bag.
+- Base catch odds: **60%** for most, **35%** for final evolutions, **3%** for legendaries.
+- **Keep working and it weakens.** Each task finished while it waits adds +25% to your odds, up to three times.
+- Ignore it and it flees.
+
+### Don't leave them waiting
+
+An agent stuck on **NEEDS YOU** for **10 minutes** makes that project's partner **faint**. Its next task earns no XP while it recovers.
+
+Answer inside **2 minutes** and it counts toward a quest instead.
+
+### Loot
+
+| How | What you get |
+|---|---|
+| First task of the day | a Great Ball |
+| Every 7th streak day | an Ultra Ball |
+| A task that ran 10+ minutes | a Great Ball |
+| A task that ran an hour | a Link Cable |
+| Any task, 5% of the time | a random stone |
+| A daily quest | 2 Great Balls |
+| The weekly quest | 2 Ultra Balls and a stone |
+
+Three daily quests and one weekly quest rotate by date. Hold a **7-day streak** and new catches have a 1-in-8 chance of being **shiny**; at **30 days** it's 1 in 4. Shinies twinkle with a gold star in the pane header.
+
+### Badges
+
+| Badge | Earn it by |
+|---|---|
+| Boulder | Catching 10 Pokémon |
+| Cascade | Finishing 50 agent tasks |
+| Thunder | Evolving a partner |
+| Rainbow | A 3-day streak |
+| Soul | Catching 75 Pokémon |
+| Marsh | Finishing 500 agent tasks |
+| Volcano | A 30-day streak |
+| Earth | Catching all 151 |
+| *Elite Four* | Finishing 1,000 agent tasks |
+| *Champion* | All 8 Kanto badges |
+
+### The trainer card and the Kanto Dex
+
+Click the footer for your **trainer card**: level, streak, encounter record, badges, bag, today's quests, recent catches and every project's partner.
+
+<img src="docs/trainer-card.png" alt="The trainer card: stats, badges, bag, quests, recent catches and partners" width="520">
+
+Click **Kanto Dex** in the agents list for all 151. Caught ones light up, shinies get a gold frame, and you can search by name or number.
+
+<img src="docs/kanto-dex.png" alt="The Kanto Pokédex: a searchable grid of all 151, caught ones highlighted" width="720">
+
+---
+
+## Keys
+
+`keys.json` here holds only a `layout:pokedex` section, so these apply while the Pokédex is showing:
+
+| Key | Does |
+|---|---|
+| `cmd-p`, `cmd-s`, `ctrl-a a` | the picker: jump to any tab, each space with its Pokémon |
+| `cmd-j` | jump to the agent that needs you most |
+| `cmd-shift-j` | peek at it without leaving |
+| `cmd-shift-k` | pin or unpin the focused agent |
+| `cmd-e` | flip between your tabs and one agent, full size |
+
+Merge that section into your own `keys.json`, and change the picker keys if yours differ.
+
+Also: the blue lens opens the command palette, a Pokémon portrait changes that project's partner, and the sidebar folds down to a 76px rail.
+
+---
+
+## What's in the box
+
+- **The layout:** `layouts/pokedex.json` and its settings preview, with the look baked in (housing red `#9b293a`, LCD `#d9e8bc`, lens cyan `#71d5df`).
+- **Eleven mods** (`mods/pokedex-*`):
+
+| Mod | Role |
+|---|---|
+| `pokedex-console` | brand plate, trainer footer, status bar |
+| `pokedex-spaces` | the projects list |
+| `pokedex-agents` | the agent cards, and the source copy of the game's rules (`game.js`) |
+| `pokedex-tabs` | the tab bar and the Files / Changes buttons |
+| `pokedex-pane` | each pane's header |
+| `pokedex-alerts` | the drawer on the right edge |
+| `pokedex-picker` | the tab picker, a clone of Herdr's |
+| `pokedex-collection` | the Kanto Dex: all 151, searchable; pick a partner |
+| `pokedex-trainer` | the trainer card: stats, badges, bag, quests, recent catches, team |
+| `pokedex-encounter` | the battle dialog |
+| `pokedex-toast` | notifications, and the wild-encounter flash |
+
+- **151 Gen 1 sprites and names**, pixel fonts with their license notices, and short original chiptune jingles for evolutions and badges (silent when Herdr's sounds are off).
+- **`programs.json`** with OMP and OMO launcher entries and their icon.
 
 Herdr's shipped `files`, `changes`, `menu`, `new-menu`, `worktree` and
-`workspace-chrome` mods/assets remain dependencies supplied by Herdr.
+`workspace-chrome` mods remain dependencies supplied by Herdr.
 This is a layout package, not the Herdr application source.
 
-## Develop
+Your progress is stored in your own `shared.json`, never in this repo, and counts only while Herdr is open. It follows each project's git repo, so renaming a space keeps its partner and XP.
 
-The game rules live in `mods/pokedex-agents/game.js`. After changing it, run
-`scripts/sync-game.sh` to copy it into the other mods, then `bun test`.
-GitHub Actions runs `scripts/sync-game.sh --check` and `bun test` on every
-push.
+Want to build it from an empty folder instead? [RECIPE.md](RECIPE.md) is the brief.
+
+---
 
 ## Install
 
@@ -102,17 +195,12 @@ The copied [mod usage guide](mods/pokedex-console/README.md) also mentions
 `retro-workspace`, the original machine's personal layout. That layout is
 not part of this package; use an installed layout name on your own machine.
 
-## Controls
+## Develop
 
-The blue sensor opens the command palette. Settings opens Look settings.
-Projects and agent cards focus their spaces or terminals. Pokémon portraits
-change the Gen 1 partner of a project. KANTO DEX opens a searchable collection where Pokemon are caught when an agent opens in their project (or by hand); they are saved in your Herdr `shared.json`, never in this repo. The tab bar supports new
-terminals/installed agents and Files/Changes panels.
-
-Working, Needs you, Done and Idle are taken from Herdr's reported status.
-Agents that do not report status still work as ordinary terminals.
-Pinning, sorting, subagent trees, peek, pane splitting and zoom remain available.
-Resize the sidebar down to 76px for compact navigation.
+The game rules live in `mods/pokedex-agents/game.js`. After changing it, run
+`scripts/sync-game.sh` to copy it into the other mods, then `bun test`.
+GitHub Actions runs `scripts/sync-game.sh --check` and `bun test` on every
+push.
 
 ## Validation
 
@@ -120,7 +208,7 @@ The source layout was checked in running Herdr at full and compact sidebar
 widths. `herdr-app check` validates initial rendering, not every deferred
 state or pointer interaction; inspect the running app after installation.
 Generated `.d.ts` and `jsconfig.json` files, runtime state, caches and private
-terminal screenshots are deliberately excluded.
+terminal screenshots are deliberately excluded; the images in `docs/` are staged.
 
 ## Credits
 
