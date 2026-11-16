@@ -1,8 +1,8 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, props, run, spaces, shared, openOverlay, exec, theme, nextCommand, notify } from "herdr";
-import { game, trainerLevel, liveStreak, options, BADGES, CAUGHT, ALERTS, ENCOUNTER_MS, WILD_MAX } from "./game.js";
-import { call } from "./server.js";
+import { game, trainerLevel, options, BADGES, CAUGHT, ALERTS, ENCOUNTER_MS, WILD_MAX } from "./game.js";
+import { call, streakNow, rulesMismatch } from "./server.js";
 
 // Game options, as commands (keys.json, the palette, herdr-app do): pokedex-console.alert-off,
 // .alert-on, .alert-smart, .hard-mode-on, .hard-mode-off. Each sets a fixed value, so the several
@@ -132,8 +132,10 @@ export default class PokedexConsole extends View {
   // (the starter choice, the New Pokedex explainer, a gift to choose) takes the badges' place until done.
   trainer(compact) {
     const g = game();
-    const streak = liveStreak(g);
-    const news = !g.party.length ? "Choose your starter"
+    const streak = streakNow(g);
+    // The server running other rules than these mods' copy comes first: what's drawn may be off.
+    const news = rulesMismatch() !== null ? "Rules differ from the server: run scripts/sync-game.sh"
+      : !g.party.length ? "Choose your starter"
       : g.lifetime > 0 && !g.seen.includes("phase2") ? "New Pokedex: see what changed"
       : g.gifts.pending.length ? "A gift is waiting" : null;
     return h_flex().id("pokedex-trainer-open").flex_1().min_w(0).h(26).px(8).gap(4).items_center()

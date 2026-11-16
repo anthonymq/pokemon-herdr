@@ -1,8 +1,8 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay, openOverlay } from "herdr";
-import { call, shareOnX } from "./server.js";
-import { game, quests, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, progress, partyOf, itemsFor, trainerLevel, liveStreak, nameOf } from "./game.js";
+import { call, shareOnX, questsNow, streakNow } from "./server.js";
+import { game, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, progress, partyOf, itemsFor, trainerLevel, nameOf } from "./game.js";
 
 // One dark LCD screen; sections are tonal surfaces (panel, then raised for the lead), never outlines.
 // Gold marks what's best (the lead, Gold quests, shinies); the LCD green fills progress bars.
@@ -80,7 +80,7 @@ export default class PokedexTrainer extends View {
     const facts = [
       this.fact("Caught", `${caught.length}/151`, g.shiny.length ? `${g.shiny.length} shiny` : null),
       this.fact("Tasks", g.tasks, g.subtasks ? `+${g.subtasks} sub` : null),
-      this.fact("Streak", `${liveStreak(g)}d`, `best ${g.streak.best}d${freezes ? ` \u00b7 ${freezes} freeze${freezes > 1 ? "s" : ""}` : ""}`),
+      this.fact("Streak", `${streakNow(g)}d`, `best ${g.streak.best}d${freezes ? ` \u00b7 ${freezes} freeze${freezes > 1 ? "s" : ""}` : ""}`),
       this.fact("Wild", `${enc.caught}/${enc.seen}`, enc.fled ? `${enc.fled} fled` : null),
     ];
     return h_flex().flex_none().p(10).gap(12).items_center().rounded(6).bg(C.panel)
@@ -254,7 +254,7 @@ export default class PokedexTrainer extends View {
         .children(g.gifts.pending.map(t => this.gift(t)))
         .child(this.identity(g, party, caught))
         .child(this.section("QUESTS"))
-        .child(v_flex().flex_none().gap(3).children(quests(g).map(q => this.quest(q))))
+        .child(v_flex().flex_none().gap(3).children(questsNow(g).map(q => this.quest(q))))
         .when(party.length > 0, el => el
           .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
             "Add catches to your party or take them out",

@@ -31,7 +31,9 @@ function icon(p, size, color) {
 function partner(pane) {
   const a = agents().find((x) => x.pane === pane);
   if (!a?.space_name) return null;
-  const id = (shared("pokedex.partners") ?? {})[(shared("pokedex.projects") ?? {})[a.space_name] ?? a.space_name];
+  // Space name -> readable project key -> the save's key for it (a hash) -> its mascot.
+  const key = (shared("pokedex.projects") ?? {})[a.space_name] ?? a.space_name;
+  const id = (shared("pokedex.partners") ?? {})[(shared("pokedex.keys") ?? {})[key] ?? key];
   if (!Number.isInteger(id)) return null;
   const shiny = (shared("pokedex.game")?.shiny ?? []).includes(id);
   return div().relative().size(20).flex_none()

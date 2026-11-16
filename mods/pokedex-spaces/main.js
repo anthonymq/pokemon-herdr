@@ -419,8 +419,9 @@ export default class Spaces extends View {
 
   // The project's partner Pokemon, as pokedex-agents saved it (space name -> project key -> Pokemon).
   partner(w) {
+    // Space name -> readable project key -> the save's key for it (a hash) -> its mascot.
     const key = shared("pokedex.projects")?.[w.name] ?? w.name;
-    const id = shared("pokedex.partners")?.[key];
+    const id = shared("pokedex.partners")?.[shared("pokedex.keys")?.[key] ?? key];
     return Number.isInteger(id) && id >= 1 && id <= 151 ? id : null;
   }
 

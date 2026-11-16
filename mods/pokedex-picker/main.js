@@ -28,10 +28,11 @@ function spaceColors() {
   if (changed) setShared("space.colors", kept);
   return kept;
 }
-// A space's partner Pokemon id: space name -> project key (pokedex.projects) -> Pokemon (pokedex.partners).
+// A space's partner Pokemon id: space name -> readable project key (pokedex.projects) -> the save's key
+// for it (pokedex.keys) -> Pokemon (pokedex.partners).
 function partnerOf(w) {
   const key = shared("pokedex.projects")?.[w.name] ?? w.name;
-  const id = shared("pokedex.partners")?.[key];
+  const id = shared("pokedex.partners")?.[shared("pokedex.keys")?.[key] ?? key];
   return Number.isInteger(id) && id >= 1 && id <= 151 ? id : null;
 }
 

@@ -4,7 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc, checking } from "herdr";
-import { game, projectKey, projectLabel, defaultPartner, PROJECTS } from "./game.js";
+import { game, projectKey, projectLabel, savedKey, defaultPartner, PROJECTS } from "./game.js";
 import { send, mirror } from "./server.js";
 
 const BUILD = Math.random(); // module code runs once per source version
@@ -103,7 +103,7 @@ function duration(ms) {
 const LEGACY_POKEMON = [1, 4, 7, 10, 16, 25, 35, 39, 52, 54, 60, 63, 74, 77, 79, 92, 104, 113, 133, 147, 152, 155, 158, 175, 179, 194, 200, 216, 220, 231, 252, 255, 258, 280, 300, 311, 312, 393, 390, 387];
 const POKEMON = Array.from({ length: 151 }, (_, i) => i + 1);
 function projectPet(name) {
-  const selected = shared("pokedex.partners")?.[projectKey(name)];
+  const selected = shared("pokedex.partners")?.[savedKey(name)];
   if (Number.isInteger(selected) && selected >= 1 && selected <= 151) return selected - 1;
   let hash = 2166136261;
   for (const c of name || "?") hash = Math.imul(hash ^ c.codePointAt(0), 16777619);
@@ -222,8 +222,9 @@ export default class Agents extends View {
     const missing = {};
     for (const a of list) {
       if (!a.space_name) continue;
+      // Asked by the readable key (the server hashes it); known by the save's key.
       const key = projectKey(a.space_name);
-      if (partners[key] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(a.space_name)];
+      if (partners[savedKey(a.space_name)] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(a.space_name)];
     }
     if (!Object.keys(missing).length) return;
     // Asked once per project per start; the mirror brings the saved partners back.

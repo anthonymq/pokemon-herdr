@@ -3,25 +3,74 @@
 // game() and shared("pokedex.*") read as before in every mod. Copied to each mod by scripts/sync-game.sh.
 import { WebSocket } from "websocket";
 import { shared, setShared, notify, exec, agents } from "herdr";
-import { shouldAlert, OPTIONS } from "./game.js";
+import { shouldAlert, quests, liveStreak, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
 
 export const SERVER = "127.0.0.1:7151";
 const KEYS = ["pokedex.game", "pokedex.caught", "pokedex.partners", "pokedex.projects"];
-// Mirrored too, but never merged: the options belong to the server's save.
-const MIRRORED = [...KEYS, OPTIONS];
+// Mirrored too, but never merged: the options belong to the server's save; the readable key -> saved
+// key and saved key -> label maps are kept on this machine by the server (see game.js).
+const MIRRORED = [...KEYS, OPTIONS, KEY_MAP, LABELS];
 
+// What the server computed from its clock (today's quests, the live streak), mirrored here: drawn as
+// sent, so an older or newer copy of the rules in a mod never shows different ones. An older server
+// sends none, and the mod's own copy is used.
+export const VIEW = "pokedex.view";
+export const questsNow = (g) => shared(VIEW)?.quests ?? quests(g);
+export const streakNow = (g) => shared(VIEW)?.streak ?? liveStreak(g);
+// The server's rules version when it differs from this copy's (time to run scripts/sync-game.sh).
+export const rulesMismatch = () => { const v = shared(VIEW); return v && v.rules !== RULES_VERSION ? v.rules : null; };
+
+// One request; throws only when the server can't be reached.
+async function post(action, args, at) {
+  const res = await fetch(`http://${SERVER}/call`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ action, args, origin: "herdr", ...(at ? { at } : {}) }),
+  });
+  return res.json();
+}
 // Resolves with the action's value; rejects with the server's error, or when it is down.
 export async function call(action, ...args) {
   let r;
   try {
-    const res = await fetch(`http://${SERVER}/call`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ action, args, origin: "herdr" }),
-    });
-    r = await res.json();
+    r = await post(action, args);
   } catch (error) {
     throw new Error(`Pokedex server not reachable: ${error}`);
+  }
+  if (!r.ok) throw new Error(r.error);
+  return r.value;
+}
+
+// --- What agents did, kept when the server can't be reached. Each report carries when it happened;
+// one the server can't take now waits in this mod's localStorage and is sent once the server is back,
+// oldest first (the server counts it on its own day). A report never overtakes an older one still
+// waiting, so a commit follows its turn.
+const EVENTS = new Set(["taskFinished", "subTaskFinished", "unblocked", "result"]);
+const outbox = () => { try { return JSON.parse(localStorage.getItem("outbox") ?? "[]"); } catch { return []; } };
+const keep = (box) => (box.length ? localStorage.setItem("outbox", JSON.stringify(box)) : localStorage.removeItem("outbox"));
+let flushing = null;
+// Sends what waits, oldest first, until it's all sent or the server is still out of reach.
+export function flushOutbox() {
+  flushing ??= (async () => {
+    for (let box = outbox(); box.length; box = outbox()) {
+      const e = box[0];
+      let r;
+      try { r = await post(e.action, e.args, e.at); } catch { return; }
+      if (!r.ok) console.log(`pokedex: queued ${e.action} refused: ${r.error}`);
+      keep(outbox().slice(1));
+    }
+  })().finally(() => { flushing = null; });
+  return flushing;
+}
+async function report(action, args) {
+  const e = { action, args, at: Date.now() };
+  await flushOutbox();
+  if (outbox().length) return void keep([...outbox(), e]);
+  let r;
+  try {
+    r = await post(action, args, e.at);
+  } catch {
+    return void keep([...outbox(), e]); // the mirror restarts the server and flushes once it's back
   }
   if (!r.ok) throw new Error(r.error);
   return r.value;
@@ -40,8 +89,10 @@ export async function shareOnX() {
   return r.copied ? "Card copied: paste it into the post (⌘V)" : "X opened; the card couldn't be copied";
 }
 
-// For changes nobody waits on: a failure is logged, not thrown.
-export const send = (action, ...args) => call(action, ...args).catch((error) => console.log(`pokedex: ${action} failed: ${error.message}`));
+// For changes nobody waits on: a failure is logged, not thrown. Agent reports are queued while the
+// server is out of reach.
+export const send = (action, ...args) => (EVENTS.has(action) ? report(action, args) : call(action, ...args))
+  .catch((error) => console.log(`pokedex: ${action} failed: ${error.message}`));
 
 // A server that isn't running is started from where it is installed: $POKEDEX_SERVER_DIR, else
 // ~/.local/share/pokedex-agents-server, else ~/workspace-perso/pokedex-agents-server. A second
@@ -70,6 +121,7 @@ export async function mirror(cx) {
     try {
       const ws = await WebSocket.connect(`ws://${SERVER}/ws`);
       tries = 0;
+      flushOutbox(); // reports queued while it was out of reach
       for (;;) {
         const msg = await ws.read();
         const state = JSON.parse(typeof msg === "string" ? msg : new TextDecoder().decode(msg));
@@ -86,6 +138,7 @@ export async function mirror(cx) {
           const v = state.shared[k];
           if (v !== undefined && JSON.stringify(v) !== JSON.stringify(shared(k))) setShared(k, v);
         }
+        if (state.view && JSON.stringify(state.view) !== JSON.stringify(shared(VIEW))) setShared(VIEW, state.view);
         for (const n of state.notes ?? []) {
           if (n.origin !== "herdr" || n.at <= shown) continue;
           shown = n.at;
