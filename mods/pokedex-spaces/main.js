@@ -486,7 +486,7 @@ export default class Spaces extends View {
           .when(!tree, el => el.child(div().size(6).flex_none().bg(fill)))
           // The sprite at 32 px in a 24 px window that crops the art's empty margin; the row keeps its height.
           .when(Boolean(pet), el => el.child(div().id(`pet-${w.id}`).size(24).flex_none().overflow_hidden().flex().items_center().justify_center()
-            .tooltip(`Partner: #${String(pet).padStart(3, "0")}`)
+            .tooltip(`Mascot: #${String(pet).padStart(3, "0")}`)
             .child(image(`mods/pokedex-agents/pokemon/${pet}.png`).size(32).flex_none())))
           // The name takes the whole line; only what's short follows it.
           .child(div().min_w(0).truncate().font_family(PX).text_size(16).line_height("16px")

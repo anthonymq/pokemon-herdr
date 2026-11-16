@@ -1,6 +1,6 @@
 # pokemon-herdr: Gotta Ship 'Em All
 
-**A [Herdr](https://herdr.dev) layout where every coding agent is a Pokémon, every project has a partner, and finishing work is how you fill the Pokédex.**
+**A [Herdr](https://herdr.dev) layout where every coding agent is a Pokémon, every project has a mascot, and finishing work is how you raise your party and fill the Pokédex.**
 
 ![The Pokédex layout: six projects, each with a partner Pokémon; one agent working, one waiting on you](docs/hero.png)
 
@@ -8,7 +8,7 @@
 
 The screenshots are native Herdr captures of a staged window: demo projects, scripted agents, no real work.
 
-No agent finishes a task without something happening. XP lands. A partner levels up. Sometimes a wild Snorlax turns up in the tall grass and waits there until you have a moment.
+No agent finishes a task without something happening. XP lands. Your lead levels up. Sometimes a wild Snorlax turns up in the tall grass and waits there until you have a moment.
 
 ---
 
@@ -19,9 +19,9 @@ Everything in the screenshot above, region by region:
 | Where | What it is |
 |---|---|
 | **Top left** | The Pokédex lens and the brand plate. Drag it to move the window. |
-| **Projects / Spaces** | Every space, with its partner Pokémon beside its name. |
+| **Projects / Spaces** | Every space, with its mascot Pokémon beside its name. |
 | **Pokémon / Agents** | Every agent as a sprite on a pale LCD card: working, needs you, done, idle. Tiles, or cards with sub-agents. |
-| **Footer** | Trainer level, streak, and the badges you've earned. Click for the trainer card. |
+| **Footer** | Trainer level, streak, and the badges you've earned (or what waits for you: your starter, a gift). Click for the trainer card. |
 | **Right edge** | The alerts drawer. It peeks out as status dots; hover and it slides open with Jump, Peek and Pin. |
 | **Status bar** | The focused folder's git state, the tall grass (wild Pokémon waiting), your alert and hard mode settings, and a count of who's working. |
 
@@ -33,17 +33,29 @@ The layout is named **pokedex**. It works with any agent that reports its status
 
 It runs on real work: XP, items and wild Pokémon all come from agents finishing tasks.
 
-### Partners and XP
+### Your party and XP
 
-Every project has a partner Pokémon. When an agent in that project finishes a turn, the partner earns XP:
+You start by choosing **Bulbasaur, Charmander or Squirtle** on the trainer card (the footer says "Choose your starter"; XP earned before that waits for it). After that you have **one party** of up to **6** Pokémon from your Pokédex. The first one is your **lead**: every XP your agents earn goes to it, whichever project they work in. The rest of the party sits in the **Day Care** and gets **25%** of it. Change the lead or the party from the trainer card.
 
-- **10 XP** per finished turn, **+5 per minute** it ran, up to **100**
+- **10 XP** per finished turn, **+5 per minute** it ran, capped at **50**
+- A turn's results pay on top: **+20** when the agent committed (Herdr checks the repo's HEAD before and after the turn), **+30** for green tests, **+50 and an Ultra Ball** for a merge. Herdr reports commits only; green and merged come from other clients.
 - **10 XP** for each finished sub-agent
+- **Daily diminishing returns**, the same in 1 repo or 10: the day's turns 1-5 pay in full, 6-20 pay 40%, 21-50 pay 10%, then 3%
 - Level *n* costs `4 × n²` XP, so Lv16 is 1,024 XP and Lv100 is 40,000
 
-Partners **evolve at their real Gen 1 levels**. Charmander becomes Charmeleon at 16. Dratini makes you wait until 30, then 55. Magikarp is still Magikarp until 20.
+Party Pokémon **evolve at their real Gen 1 levels** and keep their XP. Charmander becomes Charmeleon at 16. Dratini makes you wait until 30, then 55. Magikarp is still Magikarp until 20.
 
-Stone and trade evolutions need the item: Fire, Water, Thunder, Leaf and Moon Stones, and a **Link Cable** for the four that used to need a friend.
+Stone and trade evolutions need the item: Fire, Water, Thunder, Leaf and Moon Stones, and a **Link Cable** for the four that used to need a friend. Use them on a party member from the trainer card.
+
+### Mascots
+
+Every project still shows a Pokémon on its cards: its **mascot**. It's for show only. Click a card's Pokémon to pick another one from your catches.
+
+### Trainer level and gifts
+
+Your **trainer level** comes from all the XP you've ever earned: level *n* starts at `40 × n²`. Gifts arrive at trainer levels **5** (Eevee), **10** (Lapras), **15** (Omanyte or Kabuto, your choice), **20** (Hitmonlee or Hitmonchan) and **30** (Porygon). A gift with a choice waits on the trainer card.
+
+A save from before the party moves over by itself: each project's partner joins the Pokédex with that project's XP, the six with the most XP form the party, and the trainer card explains the change once.
 
 ### Wild encounters
 
@@ -60,9 +72,9 @@ Nothing pops up by itself (unless you ask for it, see Settings). The status bar 
 
 ### Don't leave them waiting
 
-Answer an agent stuck on **NEEDS YOU** inside **2 minutes** and its partner gets **happy**: that project's next task earns **+25% XP**, and it counts toward a quest.
+Answer an agent stuck on **NEEDS YOU** inside **2 minutes** and its project's next task earns **+25% XP**, and it counts toward a quest.
 
-In **hard mode** an agent left on NEEDS YOU for **10 minutes** makes its partner **faint**: its next task earns no XP while it recovers. Hard mode is off by default.
+In **hard mode** an agent left on NEEDS YOU for **10 minutes** makes its mascot **faint**: that project's next task earns no XP while it recovers. Hard mode is off by default.
 
 ### Settings
 
@@ -106,7 +118,7 @@ Three daily quests and one weekly quest rotate by date. Hold a **7-day streak** 
 
 ### The trainer card and the Kanto Dex
 
-Click the footer for your **trainer card**: level, streak, encounter record, badges, bag, today's quests, recent catches and every project's partner.
+Click the footer for your **trainer card**: your starter choice or party (lead, Day Care, XP, stones), waiting gifts, trainer level, streak, encounter record, badges, bag, today's quests and recent catches.
 
 <img src="docs/trainer-card.png" alt="The trainer card: stats, badges, bag, quests, recent catches and partners" width="520">
 
@@ -130,7 +142,7 @@ Click **Kanto Dex** in the agents list for all 151. Caught ones light up, shinie
 
 Merge that section into your own `keys.json`, and change the picker keys if yours differ.
 
-Also: the blue lens opens the command palette, a Pokémon portrait changes that project's partner, and the sidebar folds down to a 76px rail.
+Also: the blue lens opens the command palette, a Pokémon portrait changes that project's mascot, and the sidebar folds down to a 76px rail.
 
 ---
 
@@ -148,8 +160,8 @@ Also: the blue lens opens the command palette, a Pokémon portrait changes that 
 | `pokedex-pane` | each pane's header |
 | `pokedex-alerts` | the drawer on the right edge |
 | `pokedex-picker` | the tab picker, a clone of Herdr's |
-| `pokedex-collection` | the Kanto Dex: all 151, searchable; pick a partner |
-| `pokedex-trainer` | the trainer card: stats, badges, bag, quests, recent catches, team |
+| `pokedex-collection` | the Kanto Dex: all 151, searchable; pick a mascot or your party |
+| `pokedex-trainer` | the trainer card: starter, party, gifts, stats, badges, bag, quests, recent catches |
 | `pokedex-encounter` | the battle dialog: the tall grass, pick one and throw |
 | `pokedex-toast` | notifications, and the wild-encounter flash (only when your alert setting allows it) |
 

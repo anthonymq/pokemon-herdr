@@ -3,8 +3,8 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc } from "herdr";
-import { game, progress, projectKey, projectLabel, defaultPartner, PROJECTS } from "./game.js";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc, checking } from "herdr";
+import { game, projectKey, projectLabel, defaultPartner, PROJECTS } from "./game.js";
 import { send, mirror } from "./server.js";
 
 const BUILD = Math.random(); // module code runs once per source version
@@ -141,7 +141,7 @@ function petScene(a) {
   return div().id(`pet-${a.address}`).relative().size(SCENE).flex_none()
     .flex().items_center().justify_center()
     .bg(INK.wash).border(1.5).border_color(INK.line).rounded(3).cursor_pointer()
-    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to choose a partner from your catches; right-click to open the collection`)
+    .tooltip(`No. ${dexNumber(a.space_name)} \u00b7 Click to choose this project's mascot from your catches; right-click to open the collection`)
     .on_click((_e, cx) => {
       cx.stop_propagation();
       openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
@@ -214,7 +214,7 @@ export default class Agents extends View {
     }
   }
 
-  // A space gets its Pokemon when an agent opens in it: an agent's project without a saved partner saves the one
+  // A space gets its mascot when an agent opens in it: an agent's project without a saved one saves the one
   // this mod draws for it (the default picked from the space name). Spaces with only shells get none, so the
   // spaces list and the picker show their plain marks. Spaces sharing a repo share one Pokemon.
   savePartners(list) {
@@ -274,6 +274,54 @@ export default class Agents extends View {
     run("pane.focus", { pane: a.pane });
   }
 
+  // Where an agent's git commands would run: its pane's live folder, on its space's machine.
+  gitIn(a) {
+    const cwd = panes().find((p) => p.pane === a.pane)?.cwd;
+    return cwd ? { cwd, on: spaces().find((sp) => sp.id === a.space)?.machine ?? undefined } : null;
+  }
+
+  // The commit checked out there, or null (not a repo, no commit yet, git unreachable).
+  async head(where) {
+    try {
+      const r = await exec("git", ["rev-parse", "HEAD"], { ...where, timeout: 3000 });
+      return r.code === 0 ? r.stdout.trim() || null : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // A turn starts: remember HEAD, so its end can tell whether the agent committed. A turn resumed after
+  // NEEDS YOU keeps the HEAD it started with.
+  turnStarted(a, resumed) {
+    if (checking()) return;
+    this.heads ??= {};
+    if (resumed && this.heads[a.address]) return;
+    const where = this.gitIn(a);
+    if (where) this.heads[a.address] = { where, head: this.head(where) };
+    else delete this.heads[a.address];
+  }
+
+  // After the turn's taskFinished: a new commit on top of the HEAD it started from pays the commit result.
+  // Off the render path, short timeouts, and any failure (no repo, a branch switch) reports nothing.
+  turnFinished(a, project, sent, cx) {
+    const start = this.heads?.[a.address];
+    if (!start) return;
+    delete this.heads[a.address];
+    cx.spawn(async () => {
+      const [before] = await Promise.all([start.head, sent]);
+      if (!before) return;
+      const after = await this.head(start.where);
+      if (!after || after === before) return;
+      try {
+        const r = await exec("git", ["merge-base", "--is-ancestor", before, after], { ...start.where, timeout: 3000 });
+        if (r.code !== 0) return;
+      } catch {
+        return;
+      }
+      send("result", project, "commit");
+    });
+  }
+
   // Stamps agents whose state changed. Done and idle count as one: looking at a
   // finished agent turns done into idle, and looking isn't the agent doing anything.
   track(list, now, cx) {
@@ -282,9 +330,13 @@ export default class Agents extends View {
       const s = a.status === "done" ? "idle" : a.status;
       const prev = this.changed[a.address];
       if (prev?.s === s) continue;
-      // A working agent going quiet finished a task: its project's partner earns XP.
+      if (s === "working") this.turnStarted(a, prev?.s === "blocked");
+      // A working agent going quiet finished a task: the party's lead earns XP.
       if (prev?.s === "working" && a.status === "idle") this.mark(cx, a.address, false);
-      if (prev?.s === "working" && s === "idle") send("taskFinished", projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null);
+      if (prev?.s === "working" && s === "idle") {
+        const project = projectKey(a.space_name);
+        this.turnFinished(a, project, send("taskFinished", project, POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null), cx);
+      }
       // An agent that stops needing the person: answered fast counts for a quest, left long makes its partner faint.
       if (prev?.s === "blocked" && a.space_name) send("unblocked", projectKey(a.space_name), now - prev.at);
       this.changed[a.address] = { s, at: now };
@@ -386,13 +438,6 @@ export default class Agents extends View {
         .child(div().flex_1())
         .child(div().font_semibold().child(`Caught ${count} / 151`))
         .child(svg("mods/workspace-chrome/chevron-right.svg").size(11)));
-  }
-
-  // The partner's XP toward its next level: a thin strip under the status line.
-  levelBar(project) {
-    const { into } = progress(game().xp[projectKey(project)]);
-    return div().mx(3).h(3).flex_none().rounded(2).bg(INK.line)
-      .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, el => el.w(`${Math.round(into * 100)}%`)));
   }
 
   // Live sub-agents of `addr`, depth first, each with the tree lines in front of it.
@@ -612,12 +657,10 @@ export default class Agents extends View {
         .on_click((_e, cx) => this.go(a, cx))
         .child(petScene(a))
         .child(v_flex().flex_1().min_w(0).gap(1)
-          // The name line, inverted on the selected card the way an LCD menu marks its cursor; the level sits at its end.
+          // The name line, inverted on the selected card the way an LCD menu marks its cursor.
           .child(h_flex().h(16).px(3).gap(4).items_center().rounded(2).when(on, el => el.bg(SCREEN))
             .child(div().flex_1().min_w(0).truncate().font_family(PX).text_size(16).line_height("16px").text_color(on ? LCD : SCREEN).child(name))
-            .when(this.hovered === a.address, el => el.child(pin))
-            .child(div().flex_none().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : INK.soft)
-              .child(`Lv${progress(game().xp[projectKey(a.space_name)]).level}`)))
+            .when(this.hovered === a.address, el => el.child(pin)))
           .when(Boolean(task), el => el.child(div().px(3).truncate().text_size(11.5).text_color(INK.soft).child(task)))
           .child(h_flex().px(3).gap(5).items_center().text_size(10.5)
             .child(this.status(a, true))
@@ -628,8 +671,7 @@ export default class Agents extends View {
             .when(Boolean(machine), el => el.child(div().flex_none().text_color(INK.dim).child(machine)))
             .child(div().flex_1())
             .when(Boolean(when), el => el.child(div().flex_none().text_color(INK.dim).child(duration(now - when))))
-            .when(subs.length > 0, el => el.child(fold(a, subs))))
-          .child(this.levelBar(a.space_name)));
+            .when(subs.length > 0, el => el.child(fold(a, subs)))));
     };
 
     const tipOf = (a) => {
@@ -637,7 +679,7 @@ export default class Agents extends View {
       const when = this.since(a);
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
       return [a.space_name || label(a), machine ? `on ${machine}` : "on this computer", detail.get(a.address), STATUS_WORD[a.status], programName(a), when ? duration(now - when) : null,
-        subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null, `Lv${progress(game().xp[projectKey(a.space_name)]).level}`].filter(Boolean).join(" · ");
+        subs.length ? `${subs.length} sub-agent${subs.length > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ");
     };
 
     // An idle agent at rest: only its sprite, in a small LCD cell (36 px art in a 34 px window
@@ -671,14 +713,13 @@ export default class Agents extends View {
       return out;
     };
 
-    // A square tile: status, Pokemon, project name and level. Details live in the tooltip;
-    // click focuses the agent, right-click chooses the project's partner.
+    // A square tile: status, the project's mascot and its name. Details live in the tooltip;
+    // click focuses the agent, right-click chooses the project's mascot.
     const tile = (a) => {
       const on = a.focused;
       const subs = this.tree(all, a.address);
       const when = this.since(a);
       const program = programName(a);
-      const { level, into } = progress(game().xp[projectKey(a.space_name)]);
       // An agent on another machine has a machine-qualified address (`vps/t7`).
       const machine = a.address.includes("/") ? a.address.split("/")[0] : null;
       const tip = tipOf(a);
@@ -727,10 +768,6 @@ export default class Agents extends View {
             .when(a.status === "blocked", (el) => el.loop("opacity", { from: 0.55, to: 1, period: 800 }))))
         .child(h_flex().w_full().h(14).px(2).justify_center().items_center().rounded(2).when(on, (el) => el.bg(SCREEN))
           .child(div().min_w(0).truncate().font_family(PX).text_size(12).line_height("12px").text_color(on ? LCD : SCREEN).child(a.space_name || label(a))))
-        .child(h_flex().w_full().px(2).gap(3).items_center()
-          .child(div().flex_none().font_family(PX).text_size(10).line_height("10px").text_color(INK.soft).child(`Lv${level}`))
-          .child(div().flex_1().h(3).rounded(2).bg(INK.line)
-            .child(div().h_full().rounded(2).bg(SCREEN).w_full().when(into < 1, (el) => el.w(`${Math.round(into * 100)}%`)))))
         // Status, pin and sub-agent count float over the sprite's top corners instead of taking a row.
         .child(h_flex().absolute().top(3).left(4).right(4).h(14).items_center().justify_between()
           .child(h_flex().flex_1().gap(3).items_center()

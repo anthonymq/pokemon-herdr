@@ -56,8 +56,8 @@ export default class PokedexConsole extends View {
       .child(chip("status-alert", `New wild Pokemon alert ${ALERT_TIP[o.alert] ?? o.alert}. Click to change.`,
         () => setOption("alert", ALERTS[(ALERTS.indexOf(o.alert) + 1) % ALERTS.length]),
         div().child(`Alert ${o.alert}`)))
-      .child(chip("status-hard", o.hardMode ? "Hard mode: a partner faints when its agent waits 10 min. Click to turn off."
-        : "Hard mode off: no fainting; a fast answer makes the partner happy (+25% XP). Click to turn on.",
+      .child(chip("status-hard", o.hardMode ? "Hard mode: an agent left waiting 10 min makes its project's next task earn no XP. Click to turn off."
+        : "Hard mode off: nothing faints; a fast answer gives that project's next task +25% XP. Click to turn on.",
         () => setOption("hardMode", !o.hardMode),
         div().text_color(o.hardMode ? t.blocked : "#b6c6b8").child(`Hard ${o.hardMode ? "on" : "off"}`)));
   }
@@ -128,18 +128,25 @@ export default class PokedexConsole extends View {
           .rounded(2).bg(C.seam)))));
   }
 
-  // The trainer strip: level, streak and badge pips; it opens the trainer card.
+  // The trainer strip: level, streak and badge pips; it opens the trainer card. What waits on the card
+  // (the starter choice, the New Pokedex explainer, a gift to choose) takes the badges' place until done.
   trainer(compact) {
     const g = game();
     const streak = liveStreak(g);
+    const news = !g.party.length ? "Choose your starter"
+      : g.lifetime > 0 && !g.seen.includes("phase2") ? "New Pokedex: see what changed"
+      : g.gifts.pending.length ? "A gift is waiting" : null;
     return h_flex().id("pokedex-trainer-open").flex_1().min_w(0).h(26).px(8).gap(4).items_center()
       .rounded(4).bg(C.lcd).text_color(C.ink).text_size(11).cursor_pointer()
-      .tooltip(`Trainer Lv ${trainerLevel(g)} \u00b7 ${(shared(CAUGHT) ?? []).length}/151 caught \u00b7 ${g.tasks} tasks \u00b7 open trainer card`)
+      .tooltip(`${news ? news + " \u00b7 " : ""}Trainer Lv ${trainerLevel(g)} \u00b7 ${(shared(CAUGHT) ?? []).length}/151 caught \u00b7 ${g.tasks} tasks \u00b7 open trainer card`)
       .hover(s => s.bg("#c8dca6"))
       .on_mouse_down("left", (_e, cx) => cx.stop_propagation())
       .on_click(() => openOverlay({ mod: "pokedex-trainer", kind: "dialog", width: 600, height: 800 }))
       .child(div().flex_none().font_family(PIXEL).text_size(14).child(`TR${trainerLevel(g)}`))
-      .when(!compact, el => el
+      .when(compact && Boolean(news), el => el.child(div().flex_none().font_bold().text_color(C.housing).child("!")))
+      .when(!compact && Boolean(news), el => el
+        .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(C.housing).child(news)))
+      .when(!compact && !news, el => el
         .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(`\u2668${streak}`))
         .child(div().flex_1())
         .children(BADGES.filter(b => !b.rank).map(b => image(`mods/pokedex-trainer/badges/${b.id}.png`).size(13).flex_none()

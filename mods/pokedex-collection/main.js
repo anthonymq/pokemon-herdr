@@ -2,7 +2,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { shared, setShared, props, closeOverlay, nextCommand } from "herdr";
 import { POKEMON } from "./pokemon.js";
-import { game, itemsFor, ITEMS, nameOf, projectLabel } from "./game.js";
+import { game, nameOf, projectLabel, PARTY_MAX } from "./game.js";
 import { call, shareOnX } from "./server.js";
 
 const CAUGHT = "pokedex.caught";
@@ -19,11 +19,14 @@ export default class PokedexCollection extends View {
   init(_props, cx) {
     const selected = props()?.pokemon;
     this.query = isGen1(selected) ? String(selected) : "";
-    // Opened from an agent's scene with { project, partner }: a partner picker over the caught Pokemon.
+    // Opened from an agent's scene with { project, partner }: a mascot picker over the caught Pokemon.
     this.project = props()?.project ?? null;
     this.partner = props()?.partner ?? null;
     this.label = props()?.label ?? this.project;
-    this.caughtOnly = Boolean(this.project);
+    // Opened from the trainer card with { party: true }: clicks add catches to the party or take them out.
+    this.partyMode = !this.project && Boolean(props()?.party);
+    this.picking = Boolean(this.project) || this.partyMode;
+    this.caughtOnly = this.picking;
     this.width = 820;
     this.error = "";
     this.input = InputState.new({
@@ -91,7 +94,7 @@ export default class PokedexCollection extends View {
     const number = /^\d+$/.test(query) ? Number(query) : null;
     const caught = this.caught();
     return POKEMON.filter(p =>
-      (!(this.caughtOnly || this.project) || caught.includes(p.id)) &&
+      (!(this.caughtOnly || this.picking) || caught.includes(p.id)) &&
       (!query || (number !== null ? p.id === number : p.name.toLowerCase().includes(query))));
   }
 
@@ -116,24 +119,42 @@ export default class PokedexCollection extends View {
       .then(() => closeOverlay(props().overlay), (error) => { this.error = error.message; });
   }
 
+  // Party mode: a catch joins the end of the party, a member leaves it (the party keeps at least one).
+  toggleParty(id, cx) {
+    const party = game().party;
+    const next = party.includes(id) ? party.filter(x => x !== id) : [...party, id];
+    if (!next.length) { this.error = "Your party needs at least one Pokemon."; return; }
+    if (next.length > PARTY_MAX) { this.error = `A party holds ${PARTY_MAX}. Take one out first.`; return; }
+    this.error = "";
+    cx.spawn(async (cx) => {
+      try { await call("setParty", next); } catch (error) { this.error = error.message; }
+      cx.notify();
+    });
+  }
+
   card(p, caught, shiny) {
     const selected = caught.includes(p.id);
     const gold = shiny.includes(p.id);
-    const partner = Boolean(this.project) && p.id === this.partner;
+    const mascot = Boolean(this.project) && p.id === this.partner;
+    const slot = this.partyMode ? game().party.indexOf(p.id) : -1;
+    const tag = mascot ? "MASCOT" : slot === 0 ? "LEAD" : slot > 0 ? "PARTY" : null;
     return v_flex().id(`pokemon-${p.id}`).flex_1().min_w(0).h(126)
       .p(8).gap(3).items_center().rounded(5).border(1)
       .border_color(gold ? "#e8c35a" : selected ? C.cyan : C.border).when(gold, el => el.border(2))
       .bg(selected ? C.lcd : C.panel).text_color(selected ? C.ink : C.cream)
-      .when(partner, el => el.border(2).border_color(C.housing))
-      .when(Boolean(this.project) && selected && !partner, el => el.cursor_pointer()
+      .when(Boolean(tag), el => el.border(2).border_color(C.housing))
+      .when(Boolean(this.project) && selected && !mascot, el => el.cursor_pointer()
         .hover(s => s.border_color(C.housing))
         .on_click(() => this.choose(p.id)))
-      .when(!this.project && selected, el => el.cursor_pointer()
+      .when(this.partyMode && selected, el => el.cursor_pointer()
+        .hover(s => s.border_color(C.housing))
+        .on_click((_e, cx) => { this.toggleParty(p.id, cx); cx.notify(); }))
+      .when(!this.picking && selected, el => el.cursor_pointer()
         .when(this.picked === p.id, el => el.border(2).border_color(C.housing))
         .on_click((_e, cx) => { this.picked = this.picked === p.id ? null : p.id; cx.notify(); }))
       .child(h_flex().w_full().h(12).justify_between().items_center()
         .child(div().text_size(10).child(`#${String(p.id).padStart(3, "0")}`))
-        .when(partner, el => el.child(div().text_size(10).font_bold().text_color(C.housing).child("PARTNER")))
+        .when(Boolean(tag), el => el.child(div().text_size(10).font_bold().text_color(C.housing).child(tag)))
         .when(gold, el => el.child(div().text_size(10).font_bold().text_color("#a07c12").child("\u2726 SHINY")))
         .when(selected, el => el.child(svg("mods/workspace-chrome/check.svg").size(12))))
       .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(48).flex_none())
@@ -146,36 +167,15 @@ export default class PokedexCollection extends View {
     const id = this.picked;
     if (!id || !this.caught().includes(id)) return null;
     const e = game().dex[id];
-    const how = { wild: "caught in the wild", evolved: "evolved", met: "met when an agent opened" }[e?.how];
+    const how = {
+      wild: "caught in the wild", evolved: "evolved", met: "met when an agent opened",
+      starter: "chosen as your starter", gift: "received as a trainer gift", partner: "a project's partner before the party",
+    }[e?.how];
     const parts = [`#${String(id).padStart(3, "0")} ${nameOf(id)}`];
     if (e) parts.push(`${how ?? "caught"} ${new Date(e.at).toLocaleDateString()}`, e.project ? `in ${projectLabel(e.project)}` : "");
     else parts.push("caught before the Pokedex kept entries");
     if (game().shiny.includes(id)) parts.push("\u2726 shiny");
     return parts.filter(Boolean).join(" \u00b7 ");
-  }
-
-  // Picker mode: the stones and Link Cables the current partner can evolve with.
-  itemBar() {
-    const usable = itemsFor(this.partner);
-    if (!usable.length) return null;
-    return h_flex().flex_none().gap(6).items_center().flex_wrap()
-      .child(div().text_size(11).text_color(C.muted).child("Evolve with:"))
-      .children(usable.map(({ item, to, have }) => div().id(`use-${item}`).h(26).px(8).flex().items_center().gap(6)
-        .rounded(4).border(1).border_color(have ? ITEMS[item].color : C.border).bg(C.panel)
-        .text_size(12).text_color(have ? C.cream : C.muted)
-        .when(have > 0, el => el.cursor_pointer().hover(s => s.bg(C.border)).on_click((_e, cx) => {
-          cx.spawn(async (cx) => {
-            try {
-              const evolved = await call("useItem", this.project, item);
-              if (evolved) this.partner = evolved;
-            } catch (error) {
-              this.error = error.message;
-            }
-            cx.notify();
-          });
-        }))
-        .child(div().size(8).rounded(4).bg(ITEMS[item].color))
-        .child(`${ITEMS[item].name} x${have} \u2192 ${nameOf(to)}`)));
   }
 
   render() {
@@ -198,18 +198,18 @@ export default class PokedexCollection extends View {
         cx.notify();
       })
       .on_key_down((e, cx) => {
-        if (this.project || e.keystroke !== "ctrl-s") return;
+        if (this.picking || e.keystroke !== "ctrl-s") return;
         this.share(cx);
         cx.stop_propagation();
         cx.notify();
       })
       .child(h_flex().h(34).flex_none().gap(10).items_center()
         .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23)
-          .child(this.project ? `CHOOSE PARTNER \u00b7 ${String(this.label).toUpperCase()}` : "KANTO POKEDEX"))
+          .child(this.project ? `CHOOSE MASCOT \u00b7 ${String(this.label).toUpperCase()}` : this.partyMode ? "CHOOSE YOUR PARTY" : "KANTO POKEDEX"))
         .child(div().px(10).h(28).rounded(4).bg(C.lcd).text_color(C.ink)
           .text_size(13).font_semibold().flex().items_center().child(`Caught ${caught.length} / 151`))
-        .when(!this.project && Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
-        .when(!this.project, el => el.child(div().id("collection-share").h(28).px(10).flex_none().flex().items_center().rounded(4)
+        .when(!this.picking && Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
+        .when(!this.picking, el => el.child(div().id("collection-share").h(28).px(10).flex_none().flex().items_center().rounded(4)
           .border(1).border_color(C.border).bg(C.panel).text_size(12).font_semibold().cursor_pointer()
           .tooltip("Post your progress on X (Ctrl-S)").hover(el => el.border_color(C.cyan))
           .on_click((_e, cx) => { this.share(cx); cx.notify(); }).child("Share on X")))
@@ -220,9 +220,10 @@ export default class PokedexCollection extends View {
           .child(svg("mods/pane/close.svg").size(13)))))
       .child(div().flex_none().text_size(12).text_color(C.muted)
         .child(this.project
-          ? "Pick one of your caught Pokemon. It takes over this project's level and XP."
-          : "Gen 1 only. A Pokemon is caught when an agent opens in its project. Click a catch for its entry."))
-      .children(this.project ? [this.itemBar()].filter(Boolean) : [])
+          ? "Pick one of your caught Pokemon to stand on this project's cards. A mascot is for show: XP goes to your party's lead."
+          : this.partyMode
+            ? `Click a catch to add it to your party (up to ${PARTY_MAX}) or take it out. The lead earns the XP; the rest get 25% at the Day Care.`
+            : "Gen 1 only. A Pokemon is caught when an agent opens in its project. Click a catch for its entry."))
       .child(div().h(4).w_full().flex_none().rounded(2).bg(C.panel)
         .child(div().h_full().rounded(2).bg(C.cyan)
           .w(Math.max(0, this.width - 32) * caught.length / 151)))
@@ -230,7 +231,7 @@ export default class PokedexCollection extends View {
         .child(Input.new(this.input).flex_1().min_w(0).h_full().px(10)
           .rounded(5).border(1).border_color(C.border).bg(C.panel)
           .text_size(13).text_color(C.cream))
-        .when(!this.project, el => el
+        .when(!this.picking, el => el
           .child(this.filterButton("collection-all", "All 151", !this.caughtOnly,
             (_event, cx) => { this.caughtOnly = false; cx.notify(); }))
           .child(this.filterButton("collection-caught", "Caught", this.caughtOnly,
