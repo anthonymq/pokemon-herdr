@@ -4,9 +4,10 @@ import { props, closeOverlay } from "herdr";
 import { game, throwRate, nameOf, ITEMS, ENCOUNTER_MS, WILD_MAX } from "./game.js";
 import { call } from "./server.js";
 
+// The Pokedex screens' look: a red frame, tonal surfaces instead of outlines, one primary action.
 const C = {
-  screen: "#17251f", panel: "#244438", border: "#67866c", lcd: "#d9e8bc", ink: "#244438",
-  cream: "#f7eed7", cyan: "#71d5df", muted: "#b6c6b8", housing: "#9b293a", gold: "#e8c35a",
+  screen: "#17251f", panel: "#1f3529", raised: "#2a4637", lcd: "#d9e8bc", ink: "#244438",
+  cream: "#f7eed7", cyan: "#71d5df", muted: "#9fb3a4", housing: "#9b293a", gold: "#e8c35a",
 };
 const PIXEL = "PxPlus IBM VGA 8x16";
 
@@ -37,18 +38,24 @@ export default class PokedexEncounter extends View {
   }
 
   button(id, label, onClick, primary, disabled = false) {
-    if (disabled) return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5).border(1)
-      .border_color(C.border).bg(C.screen).text_color(C.muted).text_size(12).child(label);
-    return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5).border(1)
-      .border_color(primary ? C.lcd : C.border).bg(primary ? C.lcd : C.panel).text_color(primary ? C.ink : C.cream)
-      .text_size(13).font_semibold().cursor_pointer().hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
+    if (disabled) return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5)
+      .text_color(C.muted).text_size(12).child(label);
+    return div().id(id).w_full().h(34).flex().items_center().justify_center().rounded(5)
+      .bg(primary ? C.lcd : C.panel).text_color(primary ? C.ink : C.cream)
+      .text_size(13).font_semibold().cursor_pointer().hover(el => el.bg(primary ? C.cyan : C.raised)).on_click(onClick).child(label);
+  }
+
+  // A quiet action under the buttons (Run).
+  link(id, label, onClick) {
+    return div().id(id).h(26).px(10).flex().items_center().justify_center().rounded(4).text_size(12).text_color(C.muted)
+      .cursor_pointer().hover(el => el.bg(C.panel).text_color(C.cream)).on_click(onClick).child(label);
   }
 
   grass(list, e) {
     return h_flex().w_full().gap(6).justify_center()
       .children(list.map((w, i) => div().id(`wild-${i}`).size(46).flex_none().flex().items_center().justify_center()
-        .rounded(5).border(2).border_color(same(w, e) ? C.lcd : C.border).bg(C.panel).cursor_pointer()
-        .hover(el => el.border_color(C.cyan)).tooltip(`${nameOf(w.id)}${w.weak ? ` \u00b7 weakened x${w.weak}` : ""}`)
+        .rounded(5).bg(same(w, e) ? C.raised : C.panel).when(!same(w, e), el => el.opacity(0.6)).cursor_pointer()
+        .hover(el => el.bg(C.raised).opacity(1)).tooltip(`${nameOf(w.id)}${w.weak ? ` \u00b7 weakened x${w.weak}` : ""}`)
         .on_click((_ev, cx) => { this.pick = { id: w.id, at: w.at }; this.result = null; this.error = null; cx.notify(); })
         .child(image(`mods/pokedex-agents/pokemon/${w.id}.png`).size(40))));
   }
@@ -86,12 +93,15 @@ export default class PokedexEncounter extends View {
     const status = this.error ? this.error
       : this.result ? SAY[this.result](name)
       : e ? `Catch rate ${odds("poke")} with a Poke Ball` : "";
-    return v_flex().id("pokedex-encounter").size_full().p(16).gap(10).items_center().bg(C.screen).text_color(C.cream).font_family("Geist")
+    return v_flex().id("pokedex-encounter").size_full().p(16).gap(10).items_center().bg(C.screen)
+      .border(4).border_color(C.housing).rounded(8).text_color(C.cream).font_family("Geist")
       .child(div().font_family(PIXEL).text_size(13).text_color(C.muted).child(`TALL GRASS ${list.length}/${WILD_MAX}`))
+      // With nothing to throw at, the message sits in the middle rather than at the top.
+      .when(!shown, el => el.child(div().flex_1()))
       .when(list.length > 1, el => el.child(this.grass(list, ended ? null : e)))
       .child(div().font_family(PIXEL).text_size(20).child(shown ? `WILD ${name.toUpperCase()}` : "NOTHING IN THE GRASS"))
-      .child(div().size(120).flex_none().flex().items_center().justify_center().rounded(60).bg(C.panel)
-        .when(Boolean(shown), el => el.child(image(`mods/pokedex-agents/pokemon/${shown.id}.png`).size(96)
+      .when(Boolean(shown), el => el.child(div().size(120).flex_none().flex().items_center().justify_center().rounded(60).bg(C.panel)
+        .child(image(`mods/pokedex-agents/pokemon/${shown.id}.png`).size(96)
           .when(this.result === "caught" && Boolean(ended), el => el.opacity(0.35))
           .when(!ended, el => el.loop("top", { from: 0, to: -4, period: 900 })))))
       .child(div().h(18).text_size(13).child(status))
@@ -102,8 +112,8 @@ export default class PokedexEncounter extends View {
       .child(v_flex().w_full().gap(6)
         .when(Boolean(e) && !ended, el => el
           .children(["poke", "great", "ultra"].map((ball) => this.button(`enc-${ball}`,
-            `${BALL[ball]} x${left[ball]} \u00b7 ${odds(ball)}`, act("throwBall", ball), ball === "poke", left[ball] < 1)))
-          .child(this.button("enc-run", "Run", act("runAway"), false)))
+            `${BALL[ball]} \u00d7${left[ball]} \u00b7 ${odds(ball)}`, act("throwBall", ball), ball === "poke", left[ball] < 1)))
+          .child(this.link("enc-run", "Run away", act("runAway"))))
         .when(Boolean(ended) && Boolean(e), el => el.child(this.button("enc-next", `Next: ${nameOf(e.id)}`,
           (_ev, cx) => { this.result = null; this.last = null; cx.notify(); }, true)))
         .when(!e || Boolean(ended), el => el.child(this.button("enc-close", "Close", close, !e))));

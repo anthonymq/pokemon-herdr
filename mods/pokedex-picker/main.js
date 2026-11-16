@@ -170,8 +170,9 @@ export default class Picker extends View {
   }
 
   render() {
-    const t = { ...theme(), popover: "#244438", background: "#17251f", hover: "#355746", border: "#67866c",
-      foreground: "#d9e8bc", muted: "#b6c6b8", dim: "#819788", accent: "#71d5df" };
+    // The Pokedex screens' palette: dark LCD screen, tonal rows, the red frame.
+    const t = { ...theme(), popover: "#17251f", background: "#1f3529", hover: "#2a4637", border: "#2a4637",
+      foreground: "#f7eed7", muted: "#9fb3a4", dim: "#819788", accent: "#71d5df" };
     const rows = this.rows();
     const pickable = rows.filter((r) => r.kind !== "head");
     // Opens on where you are.
@@ -308,9 +309,12 @@ export default class Picker extends View {
       .track_focus(this.handle)
       .w_full()
       .min_h(0)
-      .p(18)
+      .p(16)
       .gap(10)
       .bg(t.popover)
+      .border(4)
+      .border_color("#9b293a")
+      .rounded(8)
       .text_size(13)
       .on_key_down((e, cx) => {
         const k = e.key;
@@ -328,7 +332,7 @@ export default class Picker extends View {
       })
       .child(h_flex().items_center().child(div().flex_1().font_family("PxPlus IBM VGA 8x16").text_size(18).text_color(t.foreground).child("GO TO…")).child(div().id("picker-esc").px(6).py(2).rounded(5).text_size(11).text_color(t.dim).cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click(() => this.close()).child("Esc")))
       .child(
-        h_flex().h(36).flex_none().px(10).gap(8).items_center().rounded(9).border_1().border_color(t.accent).bg(t.background)
+        h_flex().h(36).flex_none().px(10).gap(8).items_center().rounded(6).bg(t.background)
           .child(svg("mods/workspace-chrome/search.svg").size(15).text_color(t.dim))
           .child(Input.new(this.input).flex_1().h_full().text_size(12.8).text_color(t.foreground)),
       )

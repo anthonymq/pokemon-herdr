@@ -65,8 +65,8 @@ export default class PokedexToast extends View {
           .child("\u00d7")));
   }
 
-  // Ordinary notifications as a Pokedex screen: dark LCD panel, a level-colored stripe, pixel title,
-  // and the icon (a sprite for game news) in a light LCD chip.
+  // Ordinary notifications as a Pokedex screen: dark LCD panel in the red frame, a level-colored dot
+  // before the pixel title, and the icon (a sprite for game news) in a light LCD chip.
   render() {
     const p = props() ?? {};
     const stripe = STRIPE[p.level] ?? STRIPE.info;
@@ -76,26 +76,27 @@ export default class PokedexToast extends View {
     return h_flex()
       .id("toast")
       .size_full()
-      .pr(14)
+      .px(14)
       .gap(12)
       .items_center()
       .bg(C.screen)
       .border(2)
-      .border_color("#244438")
+      .border_color(C.housing)
       .rounded(6)
       .font_family("Geist")
       .cursor_pointer()
-      .hover((s) => s.border_color(stripe))
+      .hover((s) => s.bg("#1f3529"))
       .on_click(() => this.open(p))
-      .child(div().w(6).h_full().flex_none().rounded_l(4).bg(stripe))
-      .child(div().size(34).flex_none().rounded(4).bg(C.lcd).border(1).border_color("#67866c").flex().items_center().justify_center()
+      .child(div().size(34).flex_none().rounded(4).bg(C.lcd).flex().items_center().justify_center()
         .child(p.icon ? image(p.icon).size(SPRITE.test(p.icon) ? 32 : 18).flex_none() : div().size(10).rounded(5).bg(stripe)))
       .child(
         v_flex()
           .flex_1()
           .gap(2)
           .overflow_hidden()
-          .child(div().truncate().font_family(PIXEL).text_size(14).line_height("16px").text_color(C.cream).child((login ? `${login[1]} needs a login: run` : p.title ?? "").toUpperCase()))
+          .child(h_flex().min_w(0).gap(6).items_center()
+            .child(div().size(7).flex_none().rounded(4).bg(stripe))
+            .child(div().min_w(0).truncate().font_family(PIXEL).text_size(14).line_height("16px").text_color(C.cream).child((login ? `${login[1]} needs a login: run` : p.title ?? "").toUpperCase())))
           .when(!login && Boolean(p.body), (el) => el.child(div().truncate().text_size(12).text_color("#b6c6b8").child(p.body ?? "")))
           .when(Boolean(login), (el) => el.child(h_flex().gap(8).items_center()
             .child(div().flex_1().min_w(0).truncate().tooltip(command).text_size(12).text_color("#b6c6b8").child(command))
