@@ -7,11 +7,14 @@ import { call, shareOnX } from "./server.js";
 
 const CAUGHT = "pokedex.caught";
 const PARTNERS = "pokedex.partners";
+// The trainer card's look: one dark LCD screen in a Pokedex-red frame, tonal tiles instead of outlines,
+// gold for what's special (party tags, shinies). A caught Pokemon is a lit tile; one still missing is a
+// dim sprite on the bare screen.
 const C = {
-  screen: "#17251f", panel: "#244438", border: "#67866c",
-  lcd: "#d9e8bc", ink: "#244438", cream: "#f7eed7",
-  cyan: "#71d5df", muted: "#b6c6b8", housing: "#9b293a",
+  screen: "#17251f", panel: "#1f3529", raised: "#2a4637", lcd: "#d9e8bc", ink: "#244438",
+  cream: "#f7eed7", cyan: "#71d5df", muted: "#9fb3a4", gold: "#e8c35a", housing: "#9b293a",
 };
+const CELL_W = 92, CELL_H = 92;
 const PIXEL = "PxPlus IBM VGA 8x16";
 const isGen1 = id => Number.isInteger(id) && id >= 1 && id <= 151;
 
@@ -98,12 +101,17 @@ export default class PokedexCollection extends View {
       (!query || (number !== null ? p.id === number : p.name.toLowerCase().includes(query))));
   }
 
-  filterButton(id, label, active, onClick) {
-    return div().id(id).h(34).px(12).flex_none().flex().items_center()
-      .rounded(5).border(1).border_color(active ? C.lcd : C.border)
-      .bg(active ? C.lcd : C.panel).text_color(active ? C.ink : C.cream)
-      .text_size(12).font_semibold().cursor_pointer()
-      .hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
+  // One side of the All / Caught switch.
+  segment(id, label, active, onClick) {
+    return div().id(id).h_full().px(12).flex_none().flex().items_center().rounded(4)
+      .bg(active ? C.lcd : C.panel).text_color(active ? C.ink : C.muted).text_size(12).font_semibold()
+      .cursor_pointer().when(!active, el => el.hover(el => el.text_color(C.cream))).on_click(onClick).child(label);
+  }
+
+  button(id, label, tip, onClick) {
+    return div().id(id).h(26).px(10).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
+      .text_size(12).font_semibold().cursor_pointer().when(Boolean(tip), el => el.tooltip(tip))
+      .hover(el => el.bg(C.cyan)).on_click(onClick).child(label);
   }
 
   share(cx) {
@@ -138,28 +146,23 @@ export default class PokedexCollection extends View {
     const mascot = Boolean(this.project) && p.id === this.partner;
     const slot = this.partyMode ? game().party.indexOf(p.id) : -1;
     const tag = mascot ? "MASCOT" : slot === 0 ? "LEAD" : slot > 0 ? "PARTY" : null;
-    return v_flex().id(`pokemon-${p.id}`).flex_1().min_w(0).h(126)
-      .p(8).gap(3).items_center().rounded(5).border(1)
-      .border_color(gold ? "#e8c35a" : selected ? C.cyan : C.border).when(gold, el => el.border(2))
-      .bg(selected ? C.lcd : C.panel).text_color(selected ? C.ink : C.cream)
-      .when(Boolean(tag), el => el.border(2).border_color(C.housing))
-      .when(Boolean(this.project) && selected && !mascot, el => el.cursor_pointer()
-        .hover(s => s.border_color(C.housing))
-        .on_click(() => this.choose(p.id)))
-      .when(this.partyMode && selected, el => el.cursor_pointer()
-        .hover(s => s.border_color(C.housing))
-        .on_click((_e, cx) => { this.toggleParty(p.id, cx); cx.notify(); }))
-      .when(!this.picking && selected, el => el.cursor_pointer()
-        .when(this.picked === p.id, el => el.border(2).border_color(C.housing))
+    // Lit: the entry being read, or a party member / the mascot while picking.
+    const lit = (!this.picking && this.picked === p.id) || Boolean(tag);
+    const clickable = selected && (this.partyMode || (!this.picking) || (Boolean(this.project) && !mascot));
+    return v_flex().id(`pokemon-${p.id}`).flex_1().min_w(0).h(CELL_H).px(4).py(5).gap(1).items_center().rounded(5)
+      .bg(selected ? (lit ? C.raised : C.panel) : C.screen)
+      .when(clickable, el => el.cursor_pointer().hover(s => s.bg(C.raised)))
+      .when(Boolean(this.project) && selected && !mascot, el => el.on_click(() => this.choose(p.id)))
+      .when(this.partyMode && selected, el => el.on_click((_e, cx) => { this.toggleParty(p.id, cx); cx.notify(); }))
+      .when(!this.picking && selected, el => el
         .on_click((_e, cx) => { this.picked = this.picked === p.id ? null : p.id; cx.notify(); }))
-      .child(h_flex().w_full().h(12).justify_between().items_center()
-        .child(div().text_size(10).child(`#${String(p.id).padStart(3, "0")}`))
-        .when(Boolean(tag), el => el.child(div().text_size(10).font_bold().text_color(C.housing).child(tag)))
-        .when(gold, el => el.child(div().text_size(10).font_bold().text_color("#a07c12").child("\u2726 SHINY")))
-        .when(selected, el => el.child(svg("mods/workspace-chrome/check.svg").size(12))))
-      .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(48).flex_none())
-      .child(h_flex().w_full().h(17).justify_center().items_center()
-        .child(div().min_w(0).truncate().text_size(12).font_semibold().child(p.name)));
+      .child(h_flex().w_full().h(11).justify_between().items_center()
+        .child(div().text_size(9).text_color(C.muted).child(`#${String(p.id).padStart(3, "0")}`))
+        .when(Boolean(tag), el => el.child(div().text_size(9).font_bold().text_color(C.gold).child(tag)))
+        .when(!tag && gold, el => el.child(div().text_size(10).text_color(C.gold).child("\u2726"))))
+      .child(image(`mods/pokedex-agents/pokemon/${p.id}.png`).size(44).flex_none().when(!selected, el => el.opacity(0.18)))
+      .child(div().max_w_full().truncate().text_size(11).text_color(selected ? C.cream : C.muted)
+        .when(selected, el => el.font_semibold()).child(p.name));
   }
 
   // The dex entry of the clicked catch: when, where and how it was caught.
@@ -182,17 +185,18 @@ export default class PokedexCollection extends View {
     const caught = this.caught();
     const shiny = game().shiny;
     const matches = this.visible();
-    const columns = Math.max(1, Math.min(5, Math.floor((this.width - 24) / 136)));
+    const columns = Math.max(1, Math.min(8, Math.floor((this.width - 40) / CELL_W)));
+    const filtered = this.caughtOnly || this.picking || this.query.trim() !== "";
     const rows = [];
     for (let i = 0; i < matches.length; i += columns) {
       const cells = matches.slice(i, i + columns);
-      rows.push(h_flex().h(126).flex_none().gap(8)
+      rows.push(h_flex().h(CELL_H).flex_none().gap(4)
         .children(cells.map(p => this.card(p, caught, shiny)))
         .children(Array.from({ length: columns - cells.length }, () => div().flex_1().min_w(0))));
     }
 
     return v_flex().id("pokedex-collection").size_full().min_w(0).min_h(0)
-      .p(16).gap(10).bg(C.screen).text_color(C.cream).font_family("Geist")
+      .p(14).gap(8).bg(C.screen).border(4).border_color(C.housing).rounded(8).text_color(C.cream).font_family("Geist")
       .on_size_change((size, cx) => {
         this.width = size.width;
         cx.notify();
@@ -203,57 +207,46 @@ export default class PokedexCollection extends View {
         cx.stop_propagation();
         cx.notify();
       })
-      .child(h_flex().h(34).flex_none().gap(10).items_center()
-        .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23)
+      .child(h_flex().h(30).flex_none().gap(10).items_center()
+        .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(22)
           .child(this.project ? `CHOOSE MASCOT \u00b7 ${String(this.label).toUpperCase()}` : this.partyMode ? "CHOOSE YOUR PARTY" : "KANTO POKEDEX"))
-        .child(div().px(10).h(28).rounded(4).bg(C.lcd).text_color(C.ink)
-          .text_size(13).font_semibold().flex().items_center().child(`Caught ${caught.length} / 151`))
+        .child(div().flex_none().font_family(PIXEL).text_size(14).text_color(C.cream).child(`${caught.length} / 151`))
         .when(!this.picking && Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
-        .when(!this.picking, el => el.child(div().id("collection-share").h(28).px(10).flex_none().flex().items_center().rounded(4)
-          .border(1).border_color(C.border).bg(C.panel).text_size(12).font_semibold().cursor_pointer()
-          .tooltip("Post your progress on X (Ctrl-S)").hover(el => el.border_color(C.cyan))
-          .on_click((_e, cx) => { this.share(cx); cx.notify(); }).child("Share on X")))
+        .when(!this.picking, el => el.child(this.button("collection-share", "Share on X", "Post your progress on X (Ctrl-S)",
+          (_e, cx) => { this.share(cx); cx.notify(); })))
         .when(Boolean(props()?.overlay), el => el.child(div().id("collection-close").size(28)
           .flex_none().flex().items_center().justify_center().rounded(4)
           .cursor_pointer().hover(el => el.bg(C.panel))
           .on_click(() => closeOverlay(props().overlay))
           .child(svg("mods/pane/close.svg").size(13)))))
-      .child(div().flex_none().text_size(12).text_color(C.muted)
+      .child(div().h(4).w_full().flex_none().rounded(2).bg(C.panel)
+        .child(div().h_full().rounded(2).bg(C.lcd).w(`${(caught.length / 151) * 100}%`)))
+      .when(this.picking, el => el.child(div().flex_none().text_size(12).text_color(C.muted)
         .child(this.project
           ? "Pick one of your caught Pokemon to stand on this project's cards. A mascot is for show: XP goes to your party's lead."
-          : this.partyMode
-            ? `Click a catch to add it to your party (up to ${PARTY_MAX}) or take it out. The lead earns the XP; the rest get 25% at the Day Care.`
-            : "Gen 1 only. A Pokemon is caught when an agent opens in its project. Click a catch for its entry."))
-      .child(div().h(4).w_full().flex_none().rounded(2).bg(C.panel)
-        .child(div().h_full().rounded(2).bg(C.cyan)
-          .w(Math.max(0, this.width - 32) * caught.length / 151)))
-      .child(h_flex().h(34).flex_none().gap(8).items_center()
-        .child(Input.new(this.input).flex_1().min_w(0).h_full().px(10)
-          .rounded(5).border(1).border_color(C.border).bg(C.panel)
-          .text_size(13).text_color(C.cream))
-        .when(!this.picking, el => el
-          .child(this.filterButton("collection-all", "All 151", !this.caughtOnly,
-            (_event, cx) => { this.caughtOnly = false; cx.notify(); }))
-          .child(this.filterButton("collection-caught", "Caught", this.caughtOnly,
-            (_event, cx) => { this.caughtOnly = true; cx.notify(); }))))
-      .child(div().h(18).flex_none().text_size(11)
-        .text_color(this.error ? "#ffb9b1" : this.entry() ? C.cream : C.muted)
-        .child(this.error || this.entry() || "Saved on this device."))
-      .child(v_flex().id("collection-grid").flex_1().min_h(0).gap(8).pr(4)
+          : `Click a catch to add it to your party (up to ${PARTY_MAX}) or take it out. The lead earns the XP; the rest get 25% at the Day Care.`)))
+      .child(h_flex().h(32).flex_none().gap(8).items_center()
+        .child(Input.new(this.input).flex_1().min_w(0).h_full().px(10).rounded(5).bg(C.panel).text_size(13).text_color(C.cream))
+        .when(!this.picking, el => el.child(h_flex().h_full().flex_none().p(3).gap(2).rounded(5).bg(C.panel)
+          .child(this.segment("collection-all", "All 151", !this.caughtOnly, (_event, cx) => { this.caughtOnly = false; cx.notify(); }))
+          .child(this.segment("collection-caught", "Caught", this.caughtOnly, (_event, cx) => { this.caughtOnly = true; cx.notify(); })))))
+      .child(h_flex().h(16).flex_none().gap(8).items_center().text_size(11)
+        .child(div().flex_1().min_w(0).truncate().text_color(this.error ? "#ffb9b1" : this.entry() ? C.cream : C.muted)
+          .child(this.error || this.entry() || (this.picking ? "" : "Click a catch for its Pokedex entry.")))
+        .when(filtered, el => el.child(div().flex_none().text_color(C.muted).child(`${matches.length} shown`))))
+      .child(v_flex().id("collection-grid").flex_1().min_h(0).gap(4).pr(4)
         .overflow_y_scrollbar().mode("always")
         .children(rows)
         .when(matches.length === 0, el => el.child(v_flex().flex_1().items_center()
           .justify_center().gap(8).py(30)
           .child(div().font_semibold().child(this.caughtOnly && caught.length === 0 ? "No catches yet" : "No Pokemon found"))
           .child(div().text_size(12).text_color(C.muted).child("Choose All or search a name or number from 001 to 151."))
-          .child(this.filterButton("collection-reset-filter", "Show all Pokemon", false,
+          .child(this.button("collection-reset-filter", "Show all Pokemon", null,
             (_event, cx) => {
               this.query = "";
               this.input.set_value("");
               this.caughtOnly = false;
               cx.notify();
-            })))))
-      .child(div().h(16).flex_none().text_size(11).text_color(C.muted)
-        .child(`${matches.length} shown \u00b7 Bulbasaur #001 to Mew #151`));
+            })))));
   }
 }
