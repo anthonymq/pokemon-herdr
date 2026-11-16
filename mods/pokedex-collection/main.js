@@ -3,7 +3,7 @@ import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { shared, setShared, props, closeOverlay, nextCommand } from "herdr";
 import { POKEMON } from "./pokemon.js";
 import { game, itemsFor, ITEMS, nameOf, projectLabel } from "./game.js";
-import { call } from "./server.js";
+import { call, shareOnX } from "./server.js";
 
 const CAUGHT = "pokedex.caught";
 const PARTNERS = "pokedex.partners";
@@ -102,6 +102,14 @@ export default class PokedexCollection extends View {
       .hover(el => el.border_color(C.cyan)).on_click(onClick).child(label);
   }
 
+  share(cx) {
+    this.message = "Opening X...";
+    cx.spawn(async (cx) => {
+      try { this.message = await shareOnX(); } catch (error) { this.message = `Share failed: ${error.message}`; }
+      cx.notify();
+    });
+  }
+
   choose(id) {
     call("setPartner", this.project, id)
       .then(() => closeOverlay(props().overlay), (error) => { this.error = error.message; });
@@ -188,11 +196,22 @@ export default class PokedexCollection extends View {
         this.width = size.width;
         cx.notify();
       })
+      .on_key_down((e, cx) => {
+        if (this.project || e.keystroke !== "ctrl-s") return;
+        this.share(cx);
+        cx.stop_propagation();
+        cx.notify();
+      })
       .child(h_flex().h(34).flex_none().gap(10).items_center()
         .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(23)
           .child(this.project ? `CHOOSE PARTNER \u00b7 ${String(this.label).toUpperCase()}` : "KANTO POKEDEX"))
         .child(div().px(10).h(28).rounded(4).bg(C.lcd).text_color(C.ink)
           .text_size(13).font_semibold().flex().items_center().child(`Caught ${caught.length} / 151`))
+        .when(!this.project && Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
+        .when(!this.project, el => el.child(div().id("collection-share").h(28).px(10).flex_none().flex().items_center().rounded(4)
+          .border(1).border_color(C.border).bg(C.panel).text_size(12).font_semibold().cursor_pointer()
+          .tooltip("Post your progress on X (Ctrl-S)").hover(el => el.border_color(C.cyan))
+          .on_click((_e, cx) => { this.share(cx); cx.notify(); }).child("Share on X")))
         .when(Boolean(props()?.overlay), el => el.child(div().id("collection-close").size(28)
           .flex_none().flex().items_center().justify_center().rounded(4)
           .cursor_pointer().hover(el => el.bg(C.panel))

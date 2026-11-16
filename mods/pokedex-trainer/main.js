@@ -1,6 +1,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay } from "herdr";
+import { shareOnX } from "./server.js";
 import { game, quests, BADGES, ITEMS, CAUGHT, PARTNERS, progress, trainerLevel, liveStreak, nameOf, projectLabel } from "./game.js";
 
 const C = {
@@ -12,6 +13,20 @@ const PIXEL = "PxPlus IBM VGA 8x16";
 // The trainer card: totals, encounter record, the eight Kanto badges, recent catches and every
 // project's partner with its level.
 export default class PokedexTrainer extends View {
+  init(_props, cx) {
+    this.handle = cx.focus_handle();
+    this.handle.focus();
+    this.message = "";
+  }
+
+  share(cx) {
+    this.message = "Opening X...";
+    cx.spawn(async (cx) => {
+      try { this.message = await shareOnX(); } catch (error) { this.message = `Share failed: ${error.message}`; }
+      cx.notify();
+    });
+  }
+
   // A tile's number stays whole; `note` (a second, smaller figure) sits beside it and is what shortens.
   stat(label, value, note) {
     return v_flex().flex_1().min_w(0).p(10).gap(2).rounded(5).bg(C.panel).border(1).border_color(C.border)
@@ -43,8 +58,19 @@ export default class PokedexTrainer extends View {
     const enc = g.encounters;
     const overlay = props()?.overlay;
     return v_flex().id("pokedex-trainer").size_full().p(16).gap(10).bg(C.screen).text_color(C.cream).font_family("Geist")
+      .track_focus(this.handle)
+      .on_key_down((e, cx) => {
+        if (e.keystroke !== "s") return;
+        this.share(cx);
+        cx.stop_propagation();
+        cx.notify();
+      })
       .child(h_flex().h(30).flex_none().gap(10).items_center()
         .child(div().flex_1().font_family(PIXEL).text_size(23).child("TRAINER CARD"))
+        .when(Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
+        .child(div().id("trainer-share").h(26).px(10).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
+          .text_size(12).font_semibold().cursor_pointer().tooltip("Post your progress on X (S)").hover(el => el.bg(C.cyan))
+          .on_click((_e, cx) => { this.share(cx); cx.notify(); }).child("Share on X"))
         .when(Boolean(overlay), el => el.child(div().id("trainer-close").size(28).flex().items_center().justify_center()
           .rounded(4).cursor_pointer().hover(el => el.bg(C.panel)).on_click(() => closeOverlay(overlay))
           .child(svg("mods/pane/close.svg").size(13)))))

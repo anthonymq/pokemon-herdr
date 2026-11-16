@@ -23,6 +23,20 @@ export async function call(action, ...args) {
   if (!r.ok) throw new Error(r.error);
   return r.value;
 }
+// Shares progress on X: the server puts the card image on the clipboard, and X's compose
+// window opens with the post's text. Resolves with the message to show.
+export async function shareOnX() {
+  let r;
+  try {
+    r = await (await fetch(`http://${SERVER}/share`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+  } catch (error) {
+    throw new Error(`Pokedex server not reachable: ${error}`);
+  }
+  if (!r.ok) throw new Error(r.error);
+  await exec("open", [r.url], { timeout: 5000 });
+  return r.copied ? "Card copied: paste it into the post (⌘V)" : "X opened; the card couldn't be copied";
+}
+
 // For changes nobody waits on: a failure is logged, not thrown.
 export const send = (action, ...args) => call(action, ...args).catch((error) => console.log(`pokedex: ${action} failed: ${error.message}`));
 
