@@ -8,7 +8,7 @@ import { game, quests, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MA
 // Gold marks what's best (the lead, Gold quests, shinies); the LCD green fills progress bars.
 const C = {
   screen: "#17251f", panel: "#1f3529", raised: "#2a4637", lcd: "#d9e8bc", ink: "#244438",
-  cream: "#f7eed7", cyan: "#71d5df", muted: "#9fb3a4", gold: "#e8c35a",
+  cream: "#f7eed7", cyan: "#71d5df", muted: "#9fb3a4", gold: "#e8c35a", housing: "#9b293a",
 };
 const TIER_COLOR = ["#c98a4b", "#c9d3cc", C.gold];
 const PIXEL = "PxPlus IBM VGA 8x16";
@@ -231,7 +231,8 @@ export default class PokedexTrainer extends View {
     const caught = shared(CAUGHT) ?? [];
     const party = partyOf(g);
     const overlay = props()?.overlay;
-    return v_flex().id("pokedex-trainer").size_full().p(14).gap(8).bg(C.screen).text_color(C.cream).font_family("Geist")
+    return v_flex().id("pokedex-trainer").size_full().p(14).gap(8).bg(C.screen).border(4).border_color(C.housing).rounded(8)
+      .text_color(C.cream).font_family("Geist")
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
         if (e.keystroke !== "s") return;
