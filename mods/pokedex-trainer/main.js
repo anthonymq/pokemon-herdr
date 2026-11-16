@@ -118,7 +118,7 @@ export default class PokedexTrainer extends View {
       .when(q.tier > 0, el => el.child(div().flex_none().px(5).rounded(3).text_size(10).font_bold().text_color(C.ink)
         .bg(["#c98a4b", C.muted, C.gold][q.tier - 1]).child(TIERS[q.tier - 1])))
       .child(div().flex_1().min_w(0).truncate().child(q.goal))
-      .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? "Gold" : `${q.n}/${q.need} \u00b7 ${q.reward}`))
+      .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? `${q.n}/${q.need}` : `${q.n}/${q.need} \u00b7 ${q.reward}`))
       .when(q.rerollable, el => el.child(div().id(`reroll-${q.id}`).h(18).px(6).flex_none().flex().items_center().rounded(3)
         .border(1).border_color(C.border).text_size(10).cursor_pointer().tooltip("Swap it for another quest (once a day)")
         .hover(el => el.bg(C.screen)).on_click((_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); }).child("Reroll")));
