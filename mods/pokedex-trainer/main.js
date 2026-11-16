@@ -4,15 +4,18 @@ import { shared, props, closeOverlay, openOverlay } from "herdr";
 import { call, shareOnX } from "./server.js";
 import { game, quests, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, progress, partyOf, itemsFor, trainerLevel, liveStreak, nameOf } from "./game.js";
 
+// One dark LCD screen; sections are tonal surfaces (panel, then raised for the lead), never outlines.
+// Gold marks what's best (the lead, Gold quests, shinies); the LCD green fills progress bars.
 const C = {
-  screen: "#17251f", panel: "#244438", border: "#67866c", lcd: "#d9e8bc", ink: "#244438",
-  cream: "#f7eed7", cyan: "#71d5df", muted: "#b6c6b8", housing: "#9b293a", gold: "#e8c35a",
+  screen: "#17251f", panel: "#1f3529", raised: "#2a4637", lcd: "#d9e8bc", ink: "#244438",
+  cream: "#f7eed7", cyan: "#71d5df", muted: "#9fb3a4", gold: "#e8c35a",
 };
+const TIER_COLOR = ["#c98a4b", "#c9d3cc", C.gold];
 const PIXEL = "PxPlus IBM VGA 8x16";
 
-// The trainer card: the starter choice, waiting gifts, totals, the party (lead, Day Care, stones),
-// the encounter record, the eight Kanto badges, the bag, quests and recent catches. Once, for a save
-// from before the party, a short explainer of what changed; for a new save, Professor Oak's first steps.
+// The trainer card: who you are (lead, trainer level, totals), today's quests, the party, the eight
+// Kanto badges, the bag and recent catches. Above them while they apply: the starter choice, waiting
+// gifts, Professor Oak's first steps, and once, for a save from before the party, what changed.
 export default class PokedexTrainer extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
@@ -30,28 +33,6 @@ export default class PokedexTrainer extends View {
     });
   }
 
-  // A tile: its label, a whole number, and under it `note` (a second, smaller figure), which is what shortens.
-  stat(label, value, note) {
-    return v_flex().flex_1().min_w(0).px(8).py(5).gap(1).rounded(5).bg(C.panel).border(1).border_color(C.border)
-      .child(div().text_size(9).text_color(C.muted).child(label))
-      .child(div().font_family(PIXEL).text_size(16).text_color(C.cream).child(String(value)))
-      .child(div().min_w(0).truncate().text_size(9).text_color(C.muted).child(note || "\u00a0"));
-  }
-
-  badge(b, earned) {
-    return v_flex().id(`badge-${b.id}`).flex_1().min_w(0).gap(2).items_center().tooltip(`${b.name} Badge \u00b7 ${b.goal}`)
-      .child((b.rank
-        ? div().size(24).flex_none().rounded(12).bg(b.color).border(2).border_color(C.gold).flex().items_center().justify_center()
-          .font_family(PIXEL).text_size(12).text_color(C.ink).child(b.name[0])
-        : image(`mods/pokedex-trainer/badges/${b.id}.png`).size(24).flex_none())
-        .when(!earned, el => el.opacity(0.25)))
-      .child(div().max_w_full().truncate().text_size(9).text_color(earned ? C.cream : C.muted).child(b.name));
-  }
-
-  section(label) {
-    return div().flex_none().text_size(10).text_color(C.muted).child(label);
-  }
-
   // Sends an action; its error shows in the header.
   act(cx, action, ...args) {
     this.message = "";
@@ -61,24 +42,70 @@ export default class PokedexTrainer extends View {
     });
   }
 
+  section(label, right) {
+    return h_flex().flex_none().pt(6).items_center()
+      .child(div().flex_1().font_family(PIXEL).text_size(12).text_color(C.muted).child(label))
+      .when(Boolean(right), el => el.child(right));
+  }
+
+  // A quiet text action that lights up on hover.
+  link(id, label, tip, onClick) {
+    return div().id(id).h(20).px(6).flex_none().flex().items_center().rounded(4).text_size(11).text_color(C.muted)
+      .cursor_pointer().tooltip(tip).hover(el => el.bg(C.raised).text_color(C.cream)).on_click(onClick).child(label);
+  }
+
   button(id, label, tip, onClick) {
-    return div().id(id).h(24).px(8).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
-      .text_size(11).font_semibold().cursor_pointer().tooltip(tip).hover(el => el.bg(C.cyan)).on_click(onClick).child(label);
+    return div().id(id).h(26).px(10).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
+      .text_size(12).font_semibold().cursor_pointer().tooltip(tip).hover(el => el.bg(C.cyan)).on_click(onClick).child(label);
   }
 
-  // A Pokemon to pick (a starter, a gift): its sprite and name on a clickable LCD card.
+  bar(into, h = 4) {
+    return div().h(h).w_full().rounded(2).bg(C.screen).child(div().h_full().rounded(2).bg(C.lcd).w(`${Math.round(into * 100)}%`));
+  }
+
+  // A label over its value, for the totals beside the trainer level.
+  fact(label, value, note) {
+    return v_flex().min_w(0).gap(1)
+      .child(div().text_size(10).text_color(C.muted).child(label))
+      .child(h_flex().min_w(0).gap(4).items_end()
+        .child(div().flex_none().font_family(PIXEL).text_size(14).text_color(C.cream).child(String(value)))
+        .when(Boolean(note), el => el.child(div().min_w(0).truncate().text_size(10).text_color(C.muted).child(note))));
+  }
+
+  // Who you are: the lead, the trainer level and its XP, and the totals.
+  identity(g, party, caught) {
+    const tr = trainerLevel(g), lo = 40 * tr ** 2, hi = 40 * (tr + 1) ** 2;
+    const enc = g.encounters, lead = party[0];
+    const freezes = g.streak.freezes ?? 0;
+    const facts = [
+      this.fact("Caught", `${caught.length}/151`, g.shiny.length ? `${g.shiny.length} shiny` : null),
+      this.fact("Tasks", g.tasks, g.subtasks ? `+${g.subtasks} sub` : null),
+      this.fact("Streak", `${liveStreak(g)}d`, `best ${g.streak.best}d${freezes ? ` \u00b7 ${freezes} freeze${freezes > 1 ? "s" : ""}` : ""}`),
+      this.fact("Wild", `${enc.caught}/${enc.seen}`, enc.fled ? `${enc.fled} fled` : null),
+    ];
+    return h_flex().flex_none().p(10).gap(12).items_center().rounded(6).bg(C.panel)
+      .when(Boolean(lead), el => el.child(image(`mods/pokedex-agents/pokemon/${lead.id}.png`).size(64).flex_none()))
+      .child(v_flex().w(150).flex_none().gap(4)
+        .child(div().font_family(PIXEL).text_size(20).text_color(C.cream).child(`TRAINER LV ${tr}`))
+        .child(this.bar(Math.min(1, (g.lifetime - lo) / (hi - lo)), 5))
+        .child(div().text_size(10).text_color(C.muted).child(`${g.lifetime} / ${hi} XP`)))
+      .child(v_flex().flex_1().min_w(0).gap(6)
+        .child(h_flex().gap(10).child(div().flex_1().min_w(0).child(facts[0])).child(div().flex_1().min_w(0).child(facts[1])))
+        .child(h_flex().gap(10).child(div().flex_1().min_w(0).child(facts[2])).child(div().flex_1().min_w(0).child(facts[3]))));
+  }
+
+  // A Pokemon to pick (a starter, a gift): its sprite and name, clickable.
   pick(id, tip, onClick) {
-    return v_flex().id(`pick-${id}`).flex_1().min_w(0).p(6).gap(2).items_center().rounded(5).bg(C.lcd).text_color(C.ink)
-      .border(2).border_color(C.lcd).cursor_pointer().tooltip(tip).hover(el => el.border_color(C.housing))
-      .on_click(onClick)
-      .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(72).flex_none())
-      .child(div().font_family(PIXEL).text_size(14).child(nameOf(id).toUpperCase()));
+    return v_flex().id(`pick-${id}`).flex_1().min_w(0).p(6).gap(2).items_center().rounded(5).bg(C.raised)
+      .cursor_pointer().tooltip(tip).hover(el => el.bg(C.ink)).on_click(onClick)
+      .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(64).flex_none())
+      .child(div().font_family(PIXEL).text_size(13).child(nameOf(id).toUpperCase()));
   }
 
-  // One panel with a pixel title, a line of text and what goes under it.
+  // One raised panel with a pixel title, a line of text and what goes under it.
   panel(id, title, text, ...children) {
-    return v_flex().id(id).flex_none().p(10).gap(8).rounded(5).bg(C.panel).border(2).border_color(C.cyan)
-      .child(div().font_family(PIXEL).text_size(16).text_color(C.cyan).child(title))
+    return v_flex().id(id).flex_none().p(10).gap(8).rounded(6).bg(C.raised)
+      .child(div().font_family(PIXEL).text_size(14).text_color(C.cyan).child(title))
       .when(Boolean(text), el => el.child(div().text_size(12).child(text)))
       .children(children);
   }
@@ -108,21 +135,6 @@ export default class PokedexTrainer extends View {
         .child(div().flex_1().min_w(0).text_color(g.tutorial.includes(t.id) ? C.muted : C.cream).child(t.goal))));
   }
 
-  // A quest: its period, the tier reached (Bronze, Silver, Gold), the goal for the next tier and what
-  // it pays. A daily quest with no tier yet can be rerolled once a day.
-  quest(q) {
-    return h_flex().id(`quest-${q.id}`).h(22).px(8).gap(8).items_center().rounded(4)
-      .bg(q.done ? C.lcd : C.panel).text_color(q.done ? C.ink : C.cream).text_size(12)
-      .child(div().flex_none().w(34).font_family(PIXEL).text_size(11).child(q.weekly ? "WEEK" : "DAY"))
-      .when(q.tier > 0, el => el.child(div().flex_none().px(5).rounded(3).text_size(10).font_bold().text_color(C.ink)
-        .bg(["#c98a4b", C.muted, C.gold][q.tier - 1]).child(TIERS[q.tier - 1])))
-      .child(div().flex_1().min_w(0).truncate().child(q.goal))
-      .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? `${q.n}/${q.need}` : `${q.n}/${q.need} \u00b7 ${q.reward}`))
-      .when(q.rerollable, el => el.child(div().id(`reroll-${q.id}`).h(18).px(6).flex_none().flex().items_center().rounded(3)
-        .border(1).border_color(C.border).text_size(10).cursor_pointer().tooltip("Swap it for another quest (once a day)")
-        .hover(el => el.bg(C.screen)).on_click((_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); }).child("Reroll")));
-  }
-
   starter(g) {
     return this.panel("trainer-starter", "CHOOSE YOUR STARTER",
       `It leads your party: every XP your agents earn goes to it.${g.bank ? ` ${g.bank} XP is already waiting for it.` : ""}`,
@@ -137,30 +149,45 @@ export default class PokedexTrainer extends View {
         (_e, cx) => { this.act(cx, "claimGift", tr, id); cx.notify(); }))));
   }
 
-  // A party member, half the card wide: the lead or Day Care, its XP toward the next level, and what it
-  // can do (a stone it can take shows as a small chip; its tooltip says which evolution).
+  // A quest: its period, the tier reached (Bronze, Silver, Gold) in its colour, the goal for the next
+  // tier, progress and what the next tier pays. A daily quest with no tier yet can be rerolled once a day.
+  quest(q) {
+    return h_flex().id(`quest-${q.id}`).h(26).px(8).gap(8).items_center().rounded(4).bg(C.panel).text_size(12)
+      .child(div().flex_none().w(36).font_family(PIXEL).text_size(11).text_color(C.muted).child(q.weekly ? "WEEK" : "DAY"))
+      .child(div().flex_none().w(46).text_size(11).font_bold().text_color(q.tier ? TIER_COLOR[q.tier - 1] : C.muted)
+        .child(q.tier ? TIERS[q.tier - 1] : "\u2014"))
+      .child(div().flex_1().min_w(0).truncate().text_color(q.done ? C.muted : C.cream).child(q.goal))
+      .when(!q.done, el => el.child(div().flex_none().text_size(10).text_color(C.muted).child(q.reward)))
+      .child(div().flex_none().w(44).text_size(12).font_semibold().text_color(q.done ? C.gold : C.cream).child(`${q.n}/${q.need}`))
+      .when(q.rerollable, el => el.child(this.link(`reroll-${q.id}`, "Reroll", "Swap it for another quest (once a day)",
+        (_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); })));
+  }
+
+  // A party member, half the card wide: the lead (raised, gold label) or Day Care, its XP toward the next
+  // level, a stone it can take (its tooltip says which evolution) and, for the Day Care, making it lead.
   member(m, i, g) {
     const { into } = progress(m.xp);
     const stones = itemsFor(m.id, g).filter(x => x.have > 0);
-    return h_flex().id(`party-${m.id}`).flex_1().min_w(0).h(44).px(6).gap(6).items_center().rounded(5).bg(C.lcd).text_color(C.ink)
-      .when(i === 0, el => el.border(2).border_color(C.housing))
-      .child(image(`mods/pokedex-agents/pokemon/${m.id}.png`).size(36).flex_none())
-      .child(v_flex().flex_1().min_w(0).gap(2)
-        .child(h_flex().min_w(0).gap(5).items_center()
-          .child(div().min_w(0).truncate().font_semibold().text_size(12).child(`${nameOf(m.id)}${g.shiny.includes(m.id) ? " \u2726" : ""}`))
-          .child(div().flex_none().text_size(9).font_bold().text_color(i === 0 ? C.housing : C.ink + "99")
-            .child(i === 0 ? "LEAD" : `${Math.round(DAYCARE * 100)}%`)))
-        .child(div().h(3).w_full().rounded(2).bg(C.ink + "26").child(div().h_full().rounded(2).bg(C.ink).w(`${Math.round(into * 100)}%`)))
-        .child(div().text_size(9).text_color(C.ink + "b3").child(`${m.xp} XP`)))
-      .children(stones.map(({ item, to, have }) => div().id(`use-${m.id}-${item}`).h(18).px(4).flex_none().flex().items_center().gap(3)
-        .rounded(4).border(1).border_color(ITEMS[item].color).text_size(10).cursor_pointer().hover(el => el.bg(C.cream))
-        .tooltip(`Use a ${ITEMS[item].name} (${have} in the bag): ${nameOf(m.id)} evolves into ${nameOf(to)}`)
-        .on_click((_e, cx) => { this.act(cx, "useItem", m.id, item); cx.notify(); })
-        .child(div().size(7).rounded(4).bg(ITEMS[item].color)).child("\u2192")))
-      .when(i > 0, el => el.child(div().id(`lead-${m.id}`).h(18).px(5).flex_none().flex().items_center().rounded(4)
-        .border(1).border_color(C.ink + "66").text_size(10).font_semibold().cursor_pointer().hover(el => el.bg(C.cyan))
-        .tooltip(`Make ${nameOf(m.id)} your lead`).on_click((_e, cx) => { this.act(cx, "setLead", m.id); cx.notify(); }).child("Lead")))
-      .child(div().flex_none().font_family(PIXEL).text_size(13).child(`Lv${m.level}`));
+    return h_flex().id(`party-${m.id}`).flex_1().min_w(0).h(48).px(6).gap(8).items_center().rounded(5).bg(i === 0 ? C.raised : C.panel)
+      .child(image(`mods/pokedex-agents/pokemon/${m.id}.png`).size(40).flex_none())
+      .child(v_flex().flex_1().min_w(0).gap(3)
+        .child(h_flex().min_w(0).gap(6).items_center()
+          .child(div().min_w(0).truncate().font_semibold().text_size(12).child(nameOf(m.id)))
+          .when(g.shiny.includes(m.id), el => el.child(div().flex_none().text_size(11).text_color(C.gold).child("\u2726")))
+          .child(div().flex_1())
+          .child(div().flex_none().font_family(PIXEL).text_size(12).child(`Lv${m.level}`)))
+        .child(this.bar(into, 3))
+        .child(h_flex().gap(6).items_center()
+          .child(div().flex_1().min_w(0).truncate().text_size(10).text_color(i === 0 ? C.gold : C.muted)
+            .child(i === 0 ? "LEAD" : `DAY CARE ${Math.round(DAYCARE * 100)}%`))
+          .children(stones.map(({ item, to, have }) => div().id(`use-${m.id}-${item}`).h(16).px(4).flex_none().flex().items_center().gap(3)
+            .rounded(3).text_size(10).text_color(C.cream).cursor_pointer().hover(el => el.bg(C.screen))
+            .tooltip(`Use a ${ITEMS[item].name} (${have} in the bag): ${nameOf(m.id)} evolves into ${nameOf(to)}`)
+            .on_click((_e, cx) => { this.act(cx, "useItem", m.id, item); cx.notify(); })
+            .child(div().size(7).rounded(4).bg(ITEMS[item].color)).child(`\u2192 ${nameOf(to)}`)))
+          .when(i > 0, el => el.child(div().id(`lead-${m.id}`).h(16).px(4).flex_none().flex().items_center().rounded(3)
+            .text_size(10).text_color(C.muted).cursor_pointer().hover(el => el.bg(C.screen).text_color(C.cream))
+            .tooltip(`Make ${nameOf(m.id)} your lead`).on_click((_e, cx) => { this.act(cx, "setLead", m.id); cx.notify(); }).child("Make lead")))));
   }
 
   // The party two by two.
@@ -174,14 +201,36 @@ export default class PokedexTrainer extends View {
     return rows;
   }
 
+  badge(b, earned) {
+    return v_flex().id(`badge-${b.id}`).flex_1().min_w(0).gap(3).items_center().tooltip(`${b.name} Badge \u00b7 ${b.goal}`)
+      .child((b.rank
+        ? div().size(26).flex_none().rounded(13).bg(b.color).flex().items_center().justify_center()
+          .font_family(PIXEL).text_size(12).text_color(C.ink).child(b.name[0])
+        : image(`mods/pokedex-trainer/badges/${b.id}.png`).size(26).flex_none())
+        .when(!earned, el => el.opacity(0.2)))
+      .child(div().max_w_full().truncate().text_size(9).text_color(earned ? C.cream : C.muted).child(b.name));
+  }
+
+  // The bag as one line of items: PokeDollars and Rested XP first, then balls, stones and cables.
+  bag(g) {
+    const item = (id, color, label, tip) => h_flex().id(id).flex_none().gap(5).items_center().text_size(11)
+      .when(Boolean(tip), el => el.tooltip(tip))
+      .child(div().size(7).rounded(4).bg(color)).child(label);
+    const items = [
+      ...(g.money > 0 ? [item("bag-money", C.gold, `${g.money} PokeDollars`, "From Gold quests. The Poke Mart opens later.")] : []),
+      ...(g.rested > 0 ? [item("bag-rested", C.cyan, `Rested: next ${g.rested} XP x2`, "Days away build it: XP counts double until it's spent.")] : []),
+      ...Object.entries(ITEMS).filter(([k]) => g.bag[k] > 0).map(([k, it]) => item(`bag-${k}`, it.color, `${it.name} \u00d7${g.bag[k]}`)),
+    ];
+    return h_flex().flex_none().px(10).py(8).gap_x(14).gap_y(6).flex_wrap().rounded(6).bg(C.panel)
+      .when(!items.length, el => el.child(div().text_size(12).text_color(C.muted).child("Empty. Long tasks, active days and quests fill it.")))
+      .children(items);
+  }
+
   render() {
     const g = game();
     const caught = shared(CAUGHT) ?? [];
     const party = partyOf(g);
-    const tr = trainerLevel(g);
-    const enc = g.encounters;
     const overlay = props()?.overlay;
-    const rate = enc.caught + enc.fled ? `${Math.round(100 * enc.caught / (enc.caught + enc.fled))}%` : "-";
     return v_flex().id("pokedex-trainer").size_full().p(14).gap(8).bg(C.screen).text_color(C.cream).font_family("Geist")
       .track_focus(this.handle)
       .on_key_down((e, cx) => {
@@ -191,58 +240,35 @@ export default class PokedexTrainer extends View {
         cx.notify();
       })
       .child(h_flex().h(30).flex_none().gap(10).items_center()
-        .child(div().flex_1().font_family(PIXEL).text_size(23).child("TRAINER CARD"))
+        .child(div().flex_1().font_family(PIXEL).text_size(22).child("TRAINER CARD"))
         .when(Boolean(this.message), el => el.child(div().flex_none().text_size(11).text_color(C.muted).child(this.message)))
-        .child(div().id("trainer-share").h(26).px(10).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
-          .text_size(12).font_semibold().cursor_pointer().tooltip("Post your progress on X (S)").hover(el => el.bg(C.cyan))
-          .on_click((_e, cx) => { this.share(cx); cx.notify(); }).child("Share on X"))
+        .child(this.button("trainer-share", "Share on X", "Post your progress on X (S)", (_e, cx) => { this.share(cx); cx.notify(); }))
         .when(Boolean(overlay), el => el.child(div().id("trainer-close").size(28).flex().items_center().justify_center()
           .rounded(4).cursor_pointer().hover(el => el.bg(C.panel)).on_click(() => closeOverlay(overlay))
           .child(svg("mods/pane/close.svg").size(13)))))
       .child(v_flex().id("trainer-body").flex_1().min_h(0).gap(6).pr(4).overflow_y_scrollbar()
-      .when(g.lifetime > 0 && !g.seen.includes("phase2"), el => el.child(this.explainer()))
-      .when(Array.isArray(g.tutorial), el => el.child(this.oak(g)))
-      .when(party.length === 0, el => el.child(this.starter(g)))
-      .children(g.gifts.pending.map(t => this.gift(t)))
-      .child(h_flex().flex_none().gap(6)
-        .child(this.stat("TRAINER LV", tr, `${g.lifetime}/${40 * (tr + 1) ** 2} XP`))
-        .child(this.stat("CAUGHT", `${caught.length}/151`, `${g.shiny.length} shiny`))
-        .child(this.stat("TASKS", g.tasks, `+${g.subtasks} sub`))
-        .child(this.stat("STREAK", `${liveStreak(g)}d`, `best ${g.streak.best}d \u00b7 ${g.streak.freezes ?? 0} freeze${g.streak.freezes === 1 ? "" : "s"}`))
-        .child(this.stat("WILD", `${enc.caught}/${enc.seen}`, `${enc.fled} fled \u00b7 ${rate}`)))
-      .when(party.length > 0, el => el
-        .child(h_flex().flex_none().items_center()
-          .child(div().flex_1().child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`)))
-          .child(div().id("trainer-party-edit").h(20).px(8).flex_none().flex().items_center().rounded(4).bg(C.lcd).text_color(C.ink)
-            .text_size(11).font_semibold().cursor_pointer().tooltip("Add catches to your party or take them out").hover(el => el.bg(C.cyan))
-            .on_click(() => openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { party: true } }))
-            .child("Change party")))
-        .child(v_flex().flex_none().gap(6).children(this.partyRows(party, g))))
-      .child(this.section("BADGES"))
-      .child(h_flex().flex_none().gap(2).px(6).py(5).rounded(5).bg(C.panel).border(1).border_color(C.border)
-        .children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
-      .child(this.section("BAG"))
-      .child(h_flex().flex_none().gap(4).flex_wrap()
-        .when(!Object.values(g.bag).some(n => n > 0) && !g.money && !g.rested, el => el.child(div().text_size(12).text_color(C.muted)
-          .child("Empty. Long tasks, active days and quests fill it.")))
-        .when(g.money > 0, el => el.child(h_flex().id("bag-money").h(20).px(6).gap(5).items_center().rounded(4).bg(C.panel)
-          .border(1).border_color(C.gold).text_size(11).tooltip("From Gold quests. The Poke Mart opens later.")
-          .child(div().size(8).rounded(4).bg(C.gold)).child(`PokeDollars ${g.money}`)))
-        .when(g.rested > 0, el => el.child(h_flex().id("bag-rested").h(20).px(6).gap(5).items_center().rounded(4).bg(C.panel)
-          .border(1).border_color(C.cyan).text_size(11).tooltip("Days away build it: XP counts double until it's spent.")
-          .child(div().size(8).rounded(4).bg(C.cyan)).child(`Rested: next ${g.rested} XP x2`)))
-        .children(Object.entries(ITEMS).filter(([k]) => g.bag[k] > 0).map(([k, it]) => h_flex().id(`bag-${k}`).h(20).px(6).gap(5)
-          .items_center().rounded(4).bg(C.panel).border(1).border_color(it.color).text_size(11)
-          .child(div().size(8).rounded(4).bg(it.color)).child(`${it.name} x${g.bag[k]}`))))
-      .child(this.section("QUESTS"))
-      .child(v_flex().flex_none().gap(3)
-        .children(quests(g).map(q => this.quest(q))))
-      .child(this.section(`RECENT CATCHES \u00b7 ${g.shiny.length} shiny`))
-      .child(h_flex().flex_none().h(42).gap(5).px(5).items_center().rounded(5).bg(C.panel).border(1).border_color(C.border)
-        .when(g.recent.length === 0, el => el.child(div().text_size(12).text_color(C.muted).child("Nothing caught yet.")))
-        .children(g.recent.map(({ id }) => div().id(`recent-${id}`).size(34).flex_none().rounded(4)
-          .bg(g.shiny.includes(id) ? "#3d3a1c" : C.screen).border(1).border_color(g.shiny.includes(id) ? C.gold : C.border)
-          .flex().items_center().justify_center().tooltip(`#${String(id).padStart(3, "0")} ${nameOf(id)}`)
-          .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(32))))));
+        .when(g.lifetime > 0 && !g.seen.includes("phase2"), el => el.child(this.explainer()))
+        .when(Array.isArray(g.tutorial), el => el.child(this.oak(g)))
+        .when(party.length === 0, el => el.child(this.starter(g)))
+        .children(g.gifts.pending.map(t => this.gift(t)))
+        .child(this.identity(g, party, caught))
+        .child(this.section("QUESTS"))
+        .child(v_flex().flex_none().gap(3).children(quests(g).map(q => this.quest(q))))
+        .when(party.length > 0, el => el
+          .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
+            "Add catches to your party or take them out",
+            () => openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { party: true } }))))
+          .child(v_flex().flex_none().gap(6).children(this.partyRows(party, g))))
+        .child(this.section("BADGES"))
+        .child(h_flex().flex_none().px(6).py(8).rounded(6).bg(C.panel).children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
+        .child(this.section("BAG"))
+        .child(this.bag(g))
+        .child(this.section("RECENT CATCHES"))
+        .child(h_flex().flex_none().px(8).py(4).gap(4).items_center().rounded(6).bg(C.panel)
+          .when(g.recent.length === 0, el => el.child(div().py(8).text_size(12).text_color(C.muted).child("Nothing caught yet.")))
+          .children(g.recent.map(({ id }) => v_flex().id(`recent-${id}`).flex_none().items_center()
+            .tooltip(`#${String(id).padStart(3, "0")} ${nameOf(id)}${g.shiny.includes(id) ? " (shiny)" : ""}`)
+            .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(36))
+            .child(div().size(4).rounded(2).bg(g.shiny.includes(id) ? C.gold : C.panel))))));
   }
 }
