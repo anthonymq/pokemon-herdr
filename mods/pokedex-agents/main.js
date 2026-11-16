@@ -4,7 +4,10 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc } from "herdr";
-import { game, progress, finishTask, finishSubTask, recordCatches, migrateProject, projectKey, projectLabel, unblocked, PROJECTS } from "./game.js";
+import { game, progress, projectKey, projectLabel, PROJECTS } from "./game.js";
+import { send, mirror } from "./server.js";
+
+const BUILD = Math.random(); // module code runs once per source version
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
 const HOUSING = "#9b293a"; // the body
@@ -153,6 +156,14 @@ function petScene(a) {
 export default class Agents extends View {
   init(_props, cx) {
     if (props()?.sortMenu) return;
+    // One copy keeps Herdr's shared state in step with the Pokedex server. The mark is this build's,
+    // so a hot reload (whose old tasks stop) starts a fresh mirror.
+    if (globalThis.pokedexMirror !== BUILD) {
+      globalThis.pokedexMirror = BUILD;
+      cx.spawn(async (cx) => {
+        try { await mirror(cx); } finally { if (globalThis.pokedexMirror === BUILD) globalThis.pokedexMirror = null; }
+      });
+    }
     this.folded = new Set();
     // The Idle section picks tiles or small sprites by how many there are (IDLE_FEW); a click on
     // its heading shows the other until the count crosses the threshold again.
@@ -193,8 +204,7 @@ export default class Agents extends View {
           this.resolving.delete(sp.name);
           return;
         }
-        migrateProject(sp.name, key);
-        setShared(PROJECTS, { ...(shared(PROJECTS) ?? {}), [sp.name]: key });
+        await send("resolveProject", sp.name, key);
         this.resolving.delete(sp.name);
       });
     }
@@ -211,7 +221,12 @@ export default class Agents extends View {
       const key = projectKey(a.space_name);
       if (partners[key] === undefined && missing[key] === undefined) missing[key] = POKEMON[projectPet(a.space_name)];
     }
-    if (Object.keys(missing).length) setShared("pokedex.partners", { ...partners, ...missing });
+    if (!Object.keys(missing).length) return;
+    // Asked once per project per start; the mirror brings the saved partners back.
+    this.askedPartners ??= new Set();
+    const fresh = Object.fromEntries(Object.entries(missing).filter(([k]) => !this.askedPartners.has(k)));
+    for (const k of Object.keys(fresh)) this.askedPartners.add(k);
+    if (Object.keys(fresh).length) send("savePartners", fresh);
   }
 
   // A sub-agent without its own pane that goes from working to idle or done earns its project 10 XP.
@@ -225,7 +240,7 @@ export default class Agents extends View {
         const prev = this.subPrev[k.address];
         this.subPrev[k.address] = k.status;
         if (prev === "working" && (k.status === "idle" || k.status === "done")) {
-          finishSubTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)]);
+          send("subTaskFinished", projectKey(a.space_name), POKEMON[projectPet(a.space_name)]);
         }
       }
     }
@@ -265,9 +280,9 @@ export default class Agents extends View {
       if (prev?.s === s) continue;
       // A working agent going quiet finished a task: its project's partner earns XP.
       if (prev?.s === "working" && a.status === "idle") this.mark(cx, a.address, false);
-      if (prev?.s === "working" && s === "idle") finishTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null);
+      if (prev?.s === "working" && s === "idle") send("taskFinished", projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null);
       // An agent that stops needing the person: answered fast counts for a quest, left long makes its partner faint.
-      if (prev?.s === "blocked" && a.space_name) unblocked(projectKey(a.space_name), now - prev.at);
+      if (prev?.s === "blocked" && a.space_name) send("unblocked", projectKey(a.space_name), now - prev.at);
       this.changed[a.address] = { s, at: now };
       dirty = true;
     }
@@ -289,7 +304,7 @@ export default class Agents extends View {
       const id = POKEMON[projectPet(a.space_name)];
       if (caught.has(id)) continue;
       caught.add(id);
-      recordCatches([id], a.space_name ? projectKey(a.space_name) : null);
+      send("met", [id], a.space_name ? projectKey(a.space_name) : null);
     }
   }
 

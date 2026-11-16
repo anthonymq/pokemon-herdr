@@ -5,12 +5,13 @@ on:
   pull_request:
 
 jobs:
-  game-rules:
+  game-copies:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-      - name: game.js and pokemon.js copies match
-        run: scripts/sync-game.sh --check
-      - name: game rules
-        run: bun test
+      - uses: actions/checkout@v4
+        with:
+          repository: anthonymq/pokedex-agents-server
+          path: pokedex-agents-server
+      - name: game.js, pokemon.js and server.js copies match
+        run: POKEDEX_SERVER_DIR=pokedex-agents-server scripts/sync-game.sh --check

@@ -147,13 +147,21 @@ Herdr's shipped `files`, `changes`, `menu`, `new-menu`, `worktree` and
 `workspace-chrome` mods remain dependencies supplied by Herdr.
 This is a layout package, not the Herdr application source.
 
-Your progress is stored in your own `shared.json`, never in this repo, and counts only while Herdr is open. It follows each project's git repo, so renaming a space keeps its partner and XP.
+Your progress is kept by the Pokedex agents server, in `~/.local/state/pokedex-agents-server/`, never in this repo. Herdr's `shared.json` holds a copy that the server keeps current. Agents count only while Herdr is open. Progress follows each project's git repo, so renaming a space keeps its partner and XP. The first time Herdr connects, it merges any progress it saved on its own before this into the server's save, once.
 
 Want to build it from an empty folder instead? [RECIPE.md](RECIPE.md) is the brief.
 
 ---
 
 ## Install
+
+You need [Bun](https://bun.sh) and the [Pokedex agents server](https://github.com/anthonymq/pokedex-agents-server), which holds the game and your progress:
+
+```sh
+git clone https://github.com/anthonymq/pokedex-agents-server.git ~/.local/share/pokedex-agents-server
+```
+
+Herdr starts it when it isn't running. [pokemon-rex](https://github.com/anthonymq/pokemon-rex) uses the same server, so both apps play one save.
 
 Use a current Herdr installation. Copy `layouts/`, `mods/` and
 `personal-icons/` into your Herdr app home, normally `~/.config/herdr-app`.
@@ -197,10 +205,12 @@ not part of this package; use an installed layout name on your own machine.
 
 ## Develop
 
-The game rules live in `mods/pokedex-agents/game.js`. After changing it, run
-`scripts/sync-game.sh` to copy it into the other mods, then `bun test`.
-GitHub Actions runs `scripts/sync-game.sh --check` and `bun test` on every
-push.
+The game rules and their tests live in
+[pokedex-agents-server](https://github.com/anthonymq/pokedex-agents-server); only it changes the game.
+The mods keep copies of its `game.js` and `pokemon.js` for read-only helpers, and of
+`mods/pokedex-agents/server.js`, the client. `scripts/sync-game.sh` refreshes every copy (it
+looks for the server repo in `$POKEDEX_SERVER_DIR`, else `../pokedex-agents-server`).
+GitHub Actions runs `scripts/sync-game.sh --check` on every push.
 
 ## Validation
 

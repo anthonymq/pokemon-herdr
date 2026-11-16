@@ -2,7 +2,8 @@ import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex, InputState, Input } from "gpui-base";
 import { shared, setShared, props, closeOverlay, nextCommand } from "herdr";
 import { POKEMON } from "./pokemon.js";
-import { game, itemsFor, useItem, ITEMS, nameOf, projectLabel } from "./game.js";
+import { game, itemsFor, ITEMS, nameOf, projectLabel } from "./game.js";
+import { call } from "./server.js";
 
 const CAUGHT = "pokedex.caught";
 const PARTNERS = "pokedex.partners";
@@ -54,9 +55,7 @@ export default class PokedexCollection extends View {
     this.error = "";
     const current = this.caught();
     if (current.includes(id) === caught) return;
-    setShared(CAUGHT, caught
-      ? [...current, id].sort((a, b) => a - b)
-      : current.filter(value => value !== id));
+    call(caught ? "catch" : "release", id).catch((error) => { this.error = error.message; });
   }
 
   command(command) {
@@ -104,8 +103,8 @@ export default class PokedexCollection extends View {
   }
 
   choose(id) {
-    setShared(PARTNERS, { ...(shared(PARTNERS) ?? {}), [this.project]: id });
-    closeOverlay(props().overlay);
+    call("setPartner", this.project, id)
+      .then(() => closeOverlay(props().overlay), (error) => { this.error = error.message; });
   }
 
   card(p, caught, shiny) {
@@ -156,9 +155,15 @@ export default class PokedexCollection extends View {
         .rounded(4).border(1).border_color(have ? ITEMS[item].color : C.border).bg(C.panel)
         .text_size(12).text_color(have ? C.cream : C.muted)
         .when(have > 0, el => el.cursor_pointer().hover(s => s.bg(C.border)).on_click((_e, cx) => {
-          const evolved = useItem(this.project, item);
-          if (evolved) this.partner = evolved;
-          cx.notify();
+          cx.spawn(async (cx) => {
+            try {
+              const evolved = await call("useItem", this.project, item);
+              if (evolved) this.partner = evolved;
+            } catch (error) {
+              this.error = error.message;
+            }
+            cx.notify();
+          });
         }))
         .child(div().size(8).rounded(4).bg(ITEMS[item].color))
         .child(`${ITEMS[item].name} x${have} \u2192 ${nameOf(to)}`)));
