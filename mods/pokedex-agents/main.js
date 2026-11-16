@@ -290,14 +290,25 @@ export default class Agents extends View {
     }
   }
 
-  // A turn starts: remember HEAD, so its end can tell whether the agent committed. A turn resumed after
-  // NEEDS YOU keeps the HEAD it started with.
+  // The branch checked out there, for quest variety; null when detached or unreachable.
+  async branch(where) {
+    try {
+      const r = await exec("git", ["rev-parse", "--abbrev-ref", "HEAD"], { ...where, timeout: 3000 });
+      const name = r.code === 0 ? r.stdout.trim() : "";
+      return name && name !== "HEAD" ? name : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // A turn starts: remember HEAD and the branch, so its end can tell whether the agent committed and
+  // where it worked. A turn resumed after NEEDS YOU keeps what it started with.
   turnStarted(a, resumed) {
     if (checking()) return;
     this.heads ??= {};
     if (resumed && this.heads[a.address]) return;
     const where = this.gitIn(a);
-    if (where) this.heads[a.address] = { where, head: this.head(where) };
+    if (where) this.heads[a.address] = { where, head: this.head(where), branch: this.branch(where) };
     else delete this.heads[a.address];
   }
 
@@ -335,7 +346,9 @@ export default class Agents extends View {
       if (prev?.s === "working" && a.status === "idle") this.mark(cx, a.address, false);
       if (prev?.s === "working" && s === "idle") {
         const project = projectKey(a.space_name);
-        this.turnFinished(a, project, send("taskFinished", project, POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null), cx);
+        const partner = POKEMON[projectPet(a.space_name)], ms = now - prev.at, app = programName(a) || null;
+        const sent = Promise.resolve(this.heads?.[a.address]?.branch ?? null).then(branch => send("taskFinished", project, partner, ms, app, branch));
+        this.turnFinished(a, project, sent, cx);
       }
       // An agent that stops needing the person: answered fast counts for a quest, left long makes its partner faint.
       if (prev?.s === "blocked" && a.space_name) send("unblocked", projectKey(a.space_name), now - prev.at);

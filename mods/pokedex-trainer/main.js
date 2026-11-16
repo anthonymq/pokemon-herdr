@@ -2,7 +2,7 @@ import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay, openOverlay } from "herdr";
 import { call, shareOnX } from "./server.js";
-import { game, quests, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, progress, partyOf, itemsFor, trainerLevel, liveStreak, nameOf } from "./game.js";
+import { game, quests, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, progress, partyOf, itemsFor, trainerLevel, liveStreak, nameOf } from "./game.js";
 
 const C = {
   screen: "#17251f", panel: "#244438", border: "#67866c", lcd: "#d9e8bc", ink: "#244438",
@@ -12,12 +12,14 @@ const PIXEL = "PxPlus IBM VGA 8x16";
 
 // The trainer card: the starter choice, waiting gifts, totals, the party (lead, Day Care, stones),
 // the encounter record, the eight Kanto badges, the bag, quests and recent catches. Once, for a save
-// from before the party, a short explainer of what changed.
+// from before the party, a short explainer of what changed; for a new save, Professor Oak's first steps.
 export default class PokedexTrainer extends View {
   init(_props, cx) {
     this.handle = cx.focus_handle();
     this.handle.focus();
     this.message = "";
+    // Opening the card is one of Professor Oak's steps.
+    call("seen", "trainer").catch(() => {});
   }
 
   share(cx) {
@@ -97,6 +99,31 @@ export default class PokedexTrainer extends View {
         (_e, cx) => { this.act(cx, "seen", "phase2"); cx.notify(); })));
   }
 
+  // Professor Oak's five first steps, while the tutorial lasts.
+  oak(g) {
+    return this.panel("trainer-oak", `PROFESSOR OAK \u00b7 ${g.tutorial.length}/${TUTORIAL.length}`,
+      "Five first steps. Finish them for 5 Poke Balls and your Pokedex.",
+      ...TUTORIAL.map(t => h_flex().gap(8).items_center().text_size(12)
+        .child(div().flex_none().w(14).font_family(PIXEL).text_size(14).text_color(g.tutorial.includes(t.id) ? C.lcd : C.muted)
+          .child(g.tutorial.includes(t.id) ? "\u2713" : "\u00b7"))
+        .child(div().flex_1().min_w(0).text_color(g.tutorial.includes(t.id) ? C.muted : C.cream).child(t.goal))));
+  }
+
+  // A quest: its period, the tier reached (Bronze, Silver, Gold), the goal for the next tier and what
+  // it pays. A daily quest with no tier yet can be rerolled once a day.
+  quest(q) {
+    return h_flex().id(`quest-${q.id}`).h(24).px(8).gap(8).items_center().rounded(4)
+      .bg(q.done ? C.lcd : C.panel).text_color(q.done ? C.ink : C.cream).text_size(12)
+      .child(div().flex_none().w(34).font_family(PIXEL).text_size(11).child(q.weekly ? "WEEK" : "DAY"))
+      .when(q.tier > 0, el => el.child(div().flex_none().px(5).rounded(3).text_size(10).font_bold().text_color(C.ink)
+        .bg(["#c98a4b", C.muted, C.gold][q.tier - 1]).child(TIERS[q.tier - 1])))
+      .child(div().flex_1().min_w(0).truncate().child(q.goal))
+      .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? "Gold" : `${q.n}/${q.need} \u00b7 ${q.reward}`))
+      .when(q.rerollable, el => el.child(div().id(`reroll-${q.id}`).h(18).px(6).flex_none().flex().items_center().rounded(3)
+        .border(1).border_color(C.border).text_size(10).cursor_pointer().tooltip("Swap it for another quest (once a day)")
+        .hover(el => el.bg(C.screen)).on_click((_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); }).child("Reroll")));
+  }
+
   starter(g) {
     return this.panel("trainer-starter", "CHOOSE YOUR STARTER",
       `It leads your party: every XP your agents earn goes to it.${g.bank ? ` ${g.bank} XP is already waiting for it.` : ""}`,
@@ -161,13 +188,14 @@ export default class PokedexTrainer extends View {
           .child(svg("mods/pane/close.svg").size(13)))))
       .child(v_flex().id("trainer-body").flex_1().min_h(0).gap(10).pr(4).overflow_y_scrollbar()
       .when(g.lifetime > 0 && !g.seen.includes("phase2"), el => el.child(this.explainer()))
+      .when(Array.isArray(g.tutorial), el => el.child(this.oak(g)))
       .when(party.length === 0, el => el.child(this.starter(g)))
       .children(g.gifts.pending.map(t => this.gift(t)))
       .child(h_flex().flex_none().gap(8)
         .child(this.stat("TRAINER LV", tr, `${g.lifetime} XP \u00b7 next ${40 * (tr + 1) ** 2}`))
         .child(this.stat("CAUGHT", `${caught.length}/151`))
         .child(this.stat("TASKS", g.tasks, `+${g.subtasks} sub`))
-        .child(this.stat("STREAK", `${liveStreak(g)}d`, `best ${g.streak.best}d`)))
+        .child(this.stat("STREAK", `${liveStreak(g)}d`, `best ${g.streak.best}d \u00b7 ${g.streak.freezes ?? 0} freeze${g.streak.freezes === 1 ? "" : "s"}`)))
       .child(h_flex().flex_none().gap(8)
         .child(this.stat("ENCOUNTERS", enc.seen))
         .child(this.stat("CAUGHT IN WILD", enc.caught))
@@ -184,18 +212,20 @@ export default class PokedexTrainer extends View {
         .children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
       .child(this.section("BAG"))
       .child(h_flex().flex_none().gap(6).flex_wrap()
-        .when(!Object.values(g.bag).some(n => n > 0), el => el.child(div().text_size(12).text_color(C.muted)
-          .child("Empty. Long tasks, streak days and quests fill it.")))
+        .when(!Object.values(g.bag).some(n => n > 0) && !g.money && !g.rested, el => el.child(div().text_size(12).text_color(C.muted)
+          .child("Empty. Long tasks, active days and quests fill it.")))
+        .when(g.money > 0, el => el.child(h_flex().id("bag-money").h(24).px(8).gap(6).items_center().rounded(4).bg(C.panel)
+          .border(1).border_color(C.gold).text_size(12).tooltip("From Gold quests. The Poke Mart opens later.")
+          .child(div().size(8).rounded(4).bg(C.gold)).child(`PokeDollars ${g.money}`)))
+        .when(g.rested > 0, el => el.child(h_flex().id("bag-rested").h(24).px(8).gap(6).items_center().rounded(4).bg(C.panel)
+          .border(1).border_color(C.cyan).text_size(12).tooltip("Days away build it: XP counts double until it's spent.")
+          .child(div().size(8).rounded(4).bg(C.cyan)).child(`Rested: next ${g.rested} XP x2`)))
         .children(Object.entries(ITEMS).filter(([k]) => g.bag[k] > 0).map(([k, it]) => h_flex().id(`bag-${k}`).h(24).px(8).gap(6)
           .items_center().rounded(4).bg(C.panel).border(1).border_color(it.color).text_size(12)
           .child(div().size(8).rounded(4).bg(it.color)).child(`${it.name} x${g.bag[k]}`))))
       .child(this.section("QUESTS"))
       .child(v_flex().flex_none().gap(4)
-        .children(quests(g).map(q => h_flex().id(`quest-${q.id}`).h(24).px(8).gap(8).items_center().rounded(4)
-          .bg(q.done ? C.lcd : C.panel).text_color(q.done ? C.ink : C.cream).text_size(12)
-          .child(div().flex_none().font_family(PIXEL).text_size(11).child(q.weekly ? "WEEK" : "DAY"))
-          .child(div().flex_1().min_w(0).truncate().child(q.goal))
-          .child(div().flex_none().text_size(11).text_color(q.done ? C.ink : C.muted).child(q.done ? "Done" : `${q.n}/${q.need} \u00b7 ${q.reward}`)))))
+        .children(quests(g).map(q => this.quest(q))))
       .child(this.section(`RECENT CATCHES \u00b7 ${g.shiny.length} shiny`))
       .child(h_flex().flex_none().h(52).gap(6).px(6).items_center().rounded(5).bg(C.panel).border(1).border_color(C.border)
         .when(g.recent.length === 0, el => el.child(div().text_size(12).text_color(C.muted).child("Nothing caught yet.")))
