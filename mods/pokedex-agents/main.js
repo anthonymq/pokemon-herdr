@@ -3,7 +3,7 @@
 
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
-import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec } from "herdr";
+import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc } from "herdr";
 import { game, progress, finishTask, finishSubTask, recordCatches, migrateProject, projectKey, projectLabel, unblocked, PROJECTS } from "./game.js";
 
 // The Pokedex, named as in pokedex-spaces and pokedex-tabs.
@@ -231,15 +231,40 @@ export default class Agents extends View {
     }
   }
 
+  // Herdr shows a finished agent as idle at once when its pane has the keyboard. Here every finish
+  // is DONE first: Herdr keeps what was looked at as the terminal's `herdr.seen` label (the turn
+  // number), so putting it one turn back makes the finish unseen again, in every panel.
+  // `seen: true` does the opposite: a click on a done agent that already has the keyboard.
+  mark(cx, address, seen) {
+    cx.spawn(async () => {
+      try {
+        const r = await hc(["get", address, "--json"]);
+        if (r.code !== 0) return;
+        const t = JSON.parse(r.stdout);
+        if (t.status?.state !== "done" || !Number.isInteger(t.turn)) return;
+        const at = Number(t.labels?.["herdr.seen"]);
+        if (seen ? at >= t.turn : at < t.turn) return;
+        await hc(["label", address, `herdr.seen=${seen ? t.turn : t.turn - 1}`]);
+      } catch {}
+    });
+  }
+
+  // A click on an agent goes to its pane; one that is done and already there has now been looked at.
+  go(a, cx) {
+    if (a.focused && a.status === "done") this.mark(cx, a.address, true);
+    run("pane.focus", { pane: a.pane });
+  }
+
   // Stamps agents whose state changed. Done and idle count as one: looking at a
   // finished agent turns done into idle, and looking isn't the agent doing anything.
-  track(list, now) {
+  track(list, now, cx) {
     let dirty = false;
     for (const a of list) {
       const s = a.status === "done" ? "idle" : a.status;
       const prev = this.changed[a.address];
       if (prev?.s === s) continue;
       // A working agent going quiet finished a task: its project's partner earns XP.
+      if (prev?.s === "working" && a.status === "idle") this.mark(cx, a.address, false);
       if (prev?.s === "working" && s === "idle") finishTask(projectKey(a.space_name), POKEMON[projectPet(a.space_name)], now - prev.at, programName(a) || null);
       // An agent that stops needing the person: answered fast counts for a quest, left long makes its partner faint.
       if (prev?.s === "blocked" && a.space_name) unblocked(projectKey(a.space_name), now - prev.at);
@@ -444,7 +469,7 @@ export default class Agents extends View {
     this.migratePins(all);
     const shown = focused()?.agent;
     const now = Date.now();
-    this.track(list, now);
+    this.track(list, now, cx);
     this.resolveProjects(cx);
     this.savePartners(list);
     this.trackSubAgents(list, terminals());
@@ -534,7 +559,7 @@ export default class Agents extends View {
           .cursor_pointer()
           .when(on, (el) => el.bg(LCD))
           .when(!on, (el) => el.hover((s) => s.bg(EDGE)))
-          .on_click(() => run("pane.focus", { pane: a.pane }))
+          .on_click((_e, cx) => this.go(a, cx))
           .child(div().font_family(PX).text_size(16).line_height("16px").text_color(on ? SCREEN : CREAM).child(String(i + 1)))
           .child(this.housingMark(a.status, on)));
       }
@@ -581,7 +606,7 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        .on_click(() => run("pane.focus", { pane: a.pane }))
+        .on_click((_e, cx) => this.go(a, cx))
         .child(petScene(a))
         .child(v_flex().flex_1().min_w(0).gap(1)
           // The name line, inverted on the selected card the way an LCD menu marks its cursor; the level sits at its end.
@@ -630,7 +655,7 @@ export default class Agents extends View {
       .cursor_pointer()
       .tooltip(tipOf(a))
       .hover((s) => s.border_color(a.focused ? SCREEN : INK.soft))
-      .on_click(() => run("pane.focus", { pane: a.pane }))
+      .on_click((_e, cx) => this.go(a, cx))
       .on_mouse_down("right", (_e, cx) => {
         cx.stop_propagation();
         openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });
@@ -686,7 +711,7 @@ export default class Agents extends View {
           else if (this.hovered === a.address) this.hovered = null;
           cx.notify();
         })
-        .on_click(() => run("pane.focus", { pane: a.pane }))
+        .on_click((_e, cx) => this.go(a, cx))
         .on_mouse_down("right", (_e, cx) => {
           cx.stop_propagation();
           openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 700, height: 560, props: { project: projectKey(a.space_name), label: a.space_name, partner: POKEMON[projectPet(a.space_name)] } });

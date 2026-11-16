@@ -7,7 +7,7 @@
 
 import { View, div, svg, image } from "gpui-kit";
 import { h_flex } from "gpui-base";
-import { panes, agents, shared, props, run, theme, home } from "herdr";
+import { panes, agents, shared, props, run, theme, home, hc } from "herdr";
 
 // Pixel look (fonts ship in mods/pokedex-spaces/fonts). Only the header changes:
 // the terminal's own text, font and colors are left alone.
@@ -87,7 +87,17 @@ export default class Pane extends View {
       .border_b(2)
       .border_color(p.focused ? TRIM : RAISED)
       .on_hover((hovered, cx) => { this.hovered = hovered; cx.notify(); })
-      .on_click(() => run("pane.focus", { pane }))
+      .on_click((_e, cx) => {
+        // A done agent that already has the keyboard: this click is the look (see pokedex-agents' mark).
+        const address = p.terminal;
+        if (p.focused && st === "done" && address) cx.spawn(async () => {
+          try {
+            const t = JSON.parse((await hc(["get", address, "--json"])).stdout);
+            if (t.status?.state === "done" && Number.isInteger(t.turn)) await hc(["label", address, `herdr.seen=${t.turn}`]);
+          } catch {}
+        });
+        run("pane.focus", { pane });
+      })
       .when(Boolean(pic), (el) => el.child(pic))
       .children([partner(pane)].filter(Boolean))
       .child(div().size(6).flex_none().rounded(3).bg(p.focused ? CYAN : TRIM))
