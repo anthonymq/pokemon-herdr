@@ -2,10 +2,13 @@
 // goes through call(). pokedex-agents keeps Herdr's shared state a mirror of it (mirror()), so
 // game() and shared("pokedex.*") read as before in every mod. Copied to each mod by scripts/sync-game.sh.
 import { WebSocket } from "websocket";
-import { shared, setShared, notify, exec } from "herdr";
+import { shared, setShared, notify, exec, agents } from "herdr";
+import { shouldAlert, OPTIONS } from "./game.js";
 
 export const SERVER = "127.0.0.1:7151";
 const KEYS = ["pokedex.game", "pokedex.caught", "pokedex.partners", "pokedex.projects"];
+// Mirrored too, but never merged: the options belong to the server's save.
+const MIRRORED = [...KEYS, OPTIONS];
 
 // Resolves with the action's value; rejects with the server's error, or when it is down.
 export async function call(action, ...args) {
@@ -58,7 +61,8 @@ async function startServer() {
 
 // Follows /ws for as long as `cx` lives: each state the server sends is written into Herdr's
 // shared state (only the keys that changed, so mods redraw only on real news), and news this app
-// caused is shown as a toast. On the first state it merges Herdr's old save into the server's, once.
+// caused is shown as a toast. Quiet news (level-ups, items, quests) is never shown; a new wild Pokemon
+// only when shouldAlert() allows it for the agents busy right now (else it just waits in the tall grass). On the first state it merges Herdr's old save into the server's, once.
 export async function mirror(cx) {
   const since = Date.now();
   let shown = since, tries = 0, merged = false;
@@ -78,13 +82,15 @@ export async function mirror(cx) {
           }
           merged = true;
         }
-        for (const k of KEYS) {
+        for (const k of MIRRORED) {
           const v = state.shared[k];
           if (v !== undefined && JSON.stringify(v) !== JSON.stringify(shared(k))) setShared(k, v);
         }
         for (const n of state.notes ?? []) {
           if (n.origin !== "herdr" || n.at <= shown) continue;
           shown = n.at;
+          if (n.quiet) continue;
+          if (n.encounter && !shouldAlert(agents().filter((a) => a.status === "working").length)) continue;
           notify({ title: n.title, body: n.body, level: n.level, icon: n.icon ?? undefined, action: n.action ?? undefined, timeout: n.timeout ?? undefined });
         }
         cx.notify();

@@ -4,7 +4,7 @@
 import { View, div, image, svg } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
 import { agents, terminals, panes, focused, spaces, run, theme, shared, setShared, setAgentOrder, openOverlay, closeOverlay, props, layout, settings, exec, hc } from "herdr";
-import { game, progress, projectKey, projectLabel, PROJECTS } from "./game.js";
+import { game, progress, projectKey, projectLabel, defaultPartner, PROJECTS } from "./game.js";
 import { send, mirror } from "./server.js";
 
 const BUILD = Math.random(); // module code runs once per source version
@@ -108,7 +108,8 @@ function projectPet(name) {
   let hash = 2166136261;
   for (const c of name || "?") hash = Math.imul(hash ^ c.codePointAt(0), 16777619);
   const legacy = LEGACY_POKEMON[((hash >>> 0) + (shared("retro-pokemon.steps")?.[name] ?? 0)) % LEGACY_POKEMON.length];
-  return (legacy <= 151 ? legacy : (hash >>> 0) % 151 + 1) - 1;
+  // The server saves a default partner as a base form (never a legendary): draw the same one.
+  return defaultPartner(legacy <= 151 ? legacy : (hash >>> 0) % 151 + 1) - 1;
 }
 // A shiny partner wears a twinkling gold star in its corner.
 function projectIcon(name, size) {
@@ -296,21 +297,6 @@ export default class Agents extends View {
     localStorage.setItem("changed", JSON.stringify(this.changed));
   }
 
-  // An agent that is open catches its project's current Pokemon: each address is handled once
-  // per start, so a Pokemon is caught when its agent opens (or is already open at start).
-  catchOpened(list) {
-    this.seen ??= new Set();
-    const caught = new Set(shared("pokedex.caught") ?? []);
-    for (const a of list) {
-      if (this.seen.has(a.address)) continue;
-      this.seen.add(a.address);
-      const id = POKEMON[projectPet(a.space_name)];
-      if (caught.has(id)) continue;
-      caught.add(id);
-      send("met", [id], a.space_name ? projectKey(a.space_name) : null);
-    }
-  }
-
   // Keep offline pins until their terminal returns, and keep each pending until
   // core echoes the label so a failed write doesn't erase the old pin.
   migratePins(all) {
@@ -491,7 +477,6 @@ export default class Agents extends View {
     this.resolveProjects(cx);
     this.savePartners(list);
     this.trackSubAgents(list, terminals());
-    this.catchOpened(list);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
     const nested = new Set(collapsed ? [] : list.flatMap((a) => this.tree(all, a.address).map((s) => s.t.address)));

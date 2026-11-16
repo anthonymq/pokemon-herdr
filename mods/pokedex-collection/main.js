@@ -37,7 +37,7 @@ export default class PokedexCollection extends View {
     this.input.focus();
     cx.spawn(async cx => {
       for (;;) {
-        this.command(await nextCommand());
+        await this.command(await nextCommand());
         cx.notify();
       }
     });
@@ -55,7 +55,8 @@ export default class PokedexCollection extends View {
     this.error = "";
     const current = this.caught();
     if (current.includes(id) === caught) return;
-    call(caught ? "catch" : "release", id).catch((error) => { this.error = error.message; });
+    // catch-<n> is a debug command: the server refuses it unless it runs with POKEDEX_DEBUG=1.
+    return call(caught ? "catch" : "release", id).catch((error) => { this.error = error.message; });
   }
 
   command(command) {
@@ -77,10 +78,10 @@ export default class PokedexCollection extends View {
         }
         const match = /^(catch|release)-(\d+)$/.exec(command);
         if (!match) {
-          this.error = "Use catch-<number> or release-<number>, from 001 to 151.";
+          this.error = "Use release-<number>, or catch-<number> (debug server only), from 001 to 151.";
           return;
         }
-        this.setCaught(Number(match[2]), match[1] === "catch");
+        return this.setCaught(Number(match[2]), match[1] === "catch");
       }
     }
   }

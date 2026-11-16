@@ -1,6 +1,7 @@
 // Notifications for the pokedex layout. Ordinary ones look like Herdr's own toast. A wild encounter
-// (its icon is a Pokemon sprite) is too important for the toast strip: it reopens itself as a window
-// centered over the layout (no keyboard grab) with a flashing battle card and a sound, gone after its timeout.
+// (its icon is a Pokemon sprite) reopens itself as a window centered over the layout (no keyboard grab)
+// with a flashing battle card and a sound, gone after its timeout. It only arrives when the person opted
+// in (the mirror checks shouldAlert()); the Pokemon itself waits in the tall grass either way.
 
 import { View, div, image } from "gpui-kit";
 import { v_flex, h_flex } from "gpui-base";
@@ -26,14 +27,7 @@ export default class PokedexToast extends View {
       return;
     }
     playSound("blocked");
-    this.total = Math.round((p.timeout ?? 60000) / 1000);
-    this.left = this.total;
-    // One redraw a second while the card is up: the countdown is the data it shows.
-    cx.timer.every(1000, (cx) => {
-      this.left = Math.max(0, this.left - 1);
-      cx.notify();
-    });
-    cx.timer.after(p.timeout ?? 60000, () => closeOverlay(props().overlay));
+    cx.timer.after(p.timeout ?? 15000, () => closeOverlay(props().overlay));
   }
 
   open(p) {
@@ -64,11 +58,7 @@ export default class PokedexToast extends View {
             .child(`${name.toUpperCase()} APPEARED!`))
           .child(h_flex().gap(6).items_center()
             .child(div().px(8).py(3).rounded(4).bg(C.lcd).text_color(C.ink).text_size(12).font_semibold().child("Throw a Poke Ball"))
-            .child(div().text_size(11).text_color((this.left ?? 60) <= 10 ? C.gold : "#b6c6b8").child(`${this.left ?? 60} s before it flees`)))
-          // The countdown bar shrinks as the seconds run out and turns red for the last ten.
-          .child(div().w_full().h(4).mt(2).rounded(2).bg("#244438")
-            .child(div().h_full().rounded(2).bg((this.left ?? 60) <= 10 ? C.housing : C.gold)
-              .w(`${Math.round(100 * (this.left ?? 60) / (this.total ?? 60))}%`))))
+            .child(div().flex_1().min_w(0).truncate().text_size(11).text_color("#b6c6b8").child(p.body ?? "It's waiting in the tall grass."))))
         .child(div().id("wild-close").self_start().mt(10).size(22).flex_none().flex().items_center().justify_center()
           .rounded(4).text_color("#b6c6b8").text_size(14).hover((s) => s.bg("#244438").text_color(C.cream))
           .on_click((_e, cx) => { cx.stop_propagation(); closeOverlay(p.overlay); })

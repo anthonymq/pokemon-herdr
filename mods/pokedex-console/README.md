@@ -42,8 +42,9 @@ generation partners are remapped. Click a portrait to move to the next partner
 (Mew wraps to Bulbasaur). Right-click a portrait to open the collection on that Pokemon.
 
 The **KANTO DEX** button (**151** in the compact rail) opens a searchable
-All/Caught grid. A Pokemon is caught automatically when an agent in its project is opened;
-there is no catch button. Use the commands below to catch or release by hand. Progress is
+All/Caught grid. Pokemon are caught in the wild (the status bar's tall grass) or by evolving;
+there is no catch button. `catch-<n>` below is a debug command: the server refuses it
+unless it runs with `POKEDEX_DEBUG=1`. Progress is
 saved as `pokedex.caught` in your own Herdr `shared.json` and is never part of
 this repository. Commands for keybindings: `pokedex-collection.catch-<n>`,
 `release-<n>`, `show-all`, `show-caught`, `search-<text>`; numbers outside 1 to 151 are rejected.

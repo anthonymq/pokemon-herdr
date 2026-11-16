@@ -1,7 +1,21 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
-import { agents, focused, props, run, spaces, shared, openOverlay, exec, theme } from "herdr";
-import { game, trainerLevel, liveStreak, BADGES, CAUGHT } from "./game.js";
+import { agents, focused, props, run, spaces, shared, openOverlay, exec, theme, nextCommand, notify } from "herdr";
+import { game, trainerLevel, liveStreak, options, BADGES, CAUGHT, ALERTS, ENCOUNTER_MS, WILD_MAX } from "./game.js";
+import { call } from "./server.js";
+
+// Game options, as commands (keys.json, the palette, herdr-app do): pokedex-console.alert-off,
+// .alert-on, .alert-smart, .hard-mode-on, .hard-mode-off. Each sets a fixed value, so the several
+// shown copies of this mod can all run it.
+const COMMANDS = {
+  "alert-off": ["alert", "off"], "alert-on": ["alert", "on"], "alert-smart": ["alert", "smart"],
+  "hard-mode-on": ["hardMode", true], "hard-mode-off": ["hardMode", false],
+};
+const ALERT_TIP = {
+  off: "never", on: "always", smart: "only while no agent is working",
+};
+const setOption = (key, value) => call("setOption", key, value)
+  .catch((error) => notify({ title: "Pokedex option not saved", body: error.message, level: "error" }));
 
 const C = {
   housing: "#9b293a", raised: "#bd3c4c", seam: "#641b2b",
@@ -18,6 +32,34 @@ export default class PokedexConsole extends View {
       cx.timer.every(5000, (cx) => this.refreshGit(cx));
       this.refreshGit(cx);
     }
+    cx.spawn(async (cx) => {
+      for (;;) {
+        const c = await nextCommand();
+        if (COMMANDS[c]) setOption(...COMMANDS[c]);
+        else console.log(`pokedex-console: unknown command ${c}`);
+        cx.notify();
+      }
+    });
+  }
+
+  // The tall grass count, and the two options. Clicking the alert chip cycles off, on, smart;
+  // clicking hard mode toggles it.
+  grassAndOptions(t) {
+    const waiting = game().wild.filter((e) => Date.now() - e.at <= ENCOUNTER_MS).length;
+    const o = options();
+    const chip = (id, tip, onClick, child) => h_flex().id(id).flex_none().gap(5).items_center().px(5).rounded(3)
+      .cursor_pointer().hover(s => s.bg("#ffffff14")).tooltip(tip).on_click(onClick).child(child);
+    return h_flex().flex_none().gap(8).items_center()
+      .when(waiting > 0, el => el.child(chip("status-grass", "Wild Pokemon waiting: open the encounter",
+        () => run("mod.open", { name: "pokedex-encounter" }),
+        div().text_color(t.blocked).child(`Tall grass ${waiting}/${WILD_MAX}`))))
+      .child(chip("status-alert", `New wild Pokemon alert ${ALERT_TIP[o.alert] ?? o.alert}. Click to change.`,
+        () => setOption("alert", ALERTS[(ALERTS.indexOf(o.alert) + 1) % ALERTS.length]),
+        div().child(`Alert ${o.alert}`)))
+      .child(chip("status-hard", o.hardMode ? "Hard mode: a partner faints when its agent waits 10 min. Click to turn off."
+        : "Hard mode off: no fainting; a fast answer makes the partner happy (+25% XP). Click to turn on.",
+        () => setOption("hardMode", !o.hardMode),
+        div().text_color(o.hardMode ? t.blocked : "#b6c6b8").child(`Hard ${o.hardMode ? "on" : "off"}`)));
   }
 
   // Ahead/behind and uncommitted count for the focused terminal's folder.
@@ -143,6 +185,7 @@ export default class PokedexConsole extends View {
         .when(Boolean(g?.behind), el => el.child(div().text_color(t.blocked).child(`\u2193${g.behind}`)))
         .when(Boolean(g?.dirty), el => el.child(div().text_color(C.cream).child(`\u25cf${g.dirty}`)))))
       .child(div().flex_1())
+      .child(this.grassAndOptions(t))
       .children(counts.filter(c => c.count > 0).map(c =>
         h_flex().id(`status-${c.status}`).flex_none().gap(5).items_center().px(5).rounded(3)
           .cursor_pointer().hover(s => s.bg("#ffffff14"))

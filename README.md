@@ -8,7 +8,7 @@
 
 The screenshots are native Herdr captures of a staged window: demo projects, scripted agents, no real work.
 
-No agent finishes a task without something happening. XP lands. A partner levels up. Sometimes the screen flashes and a wild Snorlax is standing there, and you have 60 seconds.
+No agent finishes a task without something happening. XP lands. A partner levels up. Sometimes a wild Snorlax turns up in the tall grass and waits there until you have a moment.
 
 ---
 
@@ -23,7 +23,7 @@ Everything in the screenshot above, region by region:
 | **Pokémon / Agents** | Every agent as a sprite on a pale LCD card: working, needs you, done, idle. Tiles, or cards with sub-agents. |
 | **Footer** | Trainer level, streak, and the badges you've earned. Click for the trainer card. |
 | **Right edge** | The alerts drawer. It peeks out as status dots; hover and it slides open with Jump, Peek and Pin. |
-| **Status bar** | The focused folder's git state and a count of who's working. |
+| **Status bar** | The focused folder's git state, the tall grass (wild Pokémon waiting), your alert and hard mode settings, and a count of who's working. |
 
 The layout is named **pokedex**. It works with any agent that reports its status to Herdr: Claude Code, Codex, OMP, OMO and others. Agents that don't report still work as ordinary terminals.
 
@@ -31,7 +31,7 @@ The layout is named **pokedex**. It works with any agent that reports its status
 
 ## The game
 
-It runs on real work. You can't grind it; you can only ship.
+It runs on real work: XP, items and wild Pokémon all come from agents finishing tasks.
 
 ### Partners and XP
 
@@ -47,20 +47,33 @@ Stone and trade evolutions need the item: Fire, Water, Thunder, Leaf and Moon St
 
 ### Wild encounters
 
-Every finished task has a **15% chance** of a wild Pokémon. It stays for **60 seconds**.
+Every finished task has a **15% chance** of a wild Pokémon. It hides in the **tall grass** and waits there for **24 hours**; the grass holds up to **5**, and no new one shows up while it's full.
+
+Nothing pops up by itself (unless you ask for it, see Settings). The status bar shows **Tall grass 3/5**; click it to open the encounter, pick which Pokémon to throw at, and go.
 
 ![A wild Charizard appeared, over the workspace](docs/wild-encounter.png)
 
 - You get **3 free Poké Balls**. Great Balls (×1.5) and Ultra Balls (×2) come from your bag.
 - Base catch odds: **60%** for most, **35%** for final evolutions, **3%** for legendaries.
 - **Keep working and it weakens.** Each task finished while it waits adds +25% to your odds, up to three times.
-- Ignore it and it flees.
+- Ignore it for a day and it flees.
 
 ### Don't leave them waiting
 
-An agent stuck on **NEEDS YOU** for **10 minutes** makes that project's partner **faint**. Its next task earns no XP while it recovers.
+Answer an agent stuck on **NEEDS YOU** inside **2 minutes** and its partner gets **happy**: that project's next task earns **+25% XP**, and it counts toward a quest.
 
-Answer inside **2 minutes** and it counts toward a quest instead.
+In **hard mode** an agent left on NEEDS YOU for **10 minutes** makes its partner **faint**: its next task earns no XP while it recovers. Hard mode is off by default.
+
+### Settings
+
+Both live in the status bar; click to change them. They are saved by the server, so pokemon-rex sees them too.
+
+| Setting | Values |
+|---|---|
+| **Alert** | `smart` (default): a new wild Pokémon flashes its battle card only while no agent is working. `on`: always. `off`: never. |
+| **Hard mode** | `off` (default) or `on` (fainting, above). |
+
+The same as commands, for `keys.json` or `herdr-app do`: `pokedex-console.alert-off`, `.alert-on`, `.alert-smart`, `.hard-mode-on`, `.hard-mode-off`.
 
 ### Loot
 
@@ -137,8 +150,8 @@ Also: the blue lens opens the command palette, a Pokémon portrait changes that 
 | `pokedex-picker` | the tab picker, a clone of Herdr's |
 | `pokedex-collection` | the Kanto Dex: all 151, searchable; pick a partner |
 | `pokedex-trainer` | the trainer card: stats, badges, bag, quests, recent catches, team |
-| `pokedex-encounter` | the battle dialog |
-| `pokedex-toast` | notifications, and the wild-encounter flash |
+| `pokedex-encounter` | the battle dialog: the tall grass, pick one and throw |
+| `pokedex-toast` | notifications, and the wild-encounter flash (only when your alert setting allows it) |
 
 - **151 Gen 1 sprites and names**, pixel fonts with their license notices, and short original chiptune jingles for evolutions and badges (silent when Herdr's sounds are off).
 - **`programs.json`** with OMP and OMO launcher entries and their icon.
