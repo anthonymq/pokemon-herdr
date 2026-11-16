@@ -186,18 +186,21 @@ export default class Agents extends View {
     const known = shared(PROJECTS) ?? {};
     const allPanes = panes();
     for (const sp of spaces()) {
-      if (!sp.name || sp.name in known || this.resolving.has(sp.name)) continue;
+      // A space keyed by its own name was resolved under the old rule (name when not in a repo): its
+      // key is worked out again, so it matches pokemon-rex's (repo, else folder) and its progress moves.
+      if (!sp.name || (sp.name in known && known[sp.name] !== sp.name) || this.resolving.has(sp.name)) continue;
       const tabs = new Set(sp.tabs.map((tab) => tab.id));
       const cwd = allPanes.find((p) => p.terminal && p.cwd && tabs.has(p.tab))?.cwd;
       if (!cwd) continue;
       this.resolving.add(sp.name);
       cx.spawn(async () => {
-        let key = sp.name;
+        let key;
         try {
-          // Outside a repo git exits non-zero and the space name stays the key.
+          // The repo root, else (outside a repo git exits non-zero) the folder itself, as pokemon-rex keys it.
           const r = await exec("git", ["rev-parse", "--show-toplevel"], { cwd, on: sp.machine ?? undefined, timeout: 5000 });
           const top = r.stdout.trim();
-          if (r.code === 0 && top) key = sp.machine ? `${sp.machine}:${top}` : top;
+          const root = r.code === 0 && top ? top : cwd;
+          key = sp.machine ? `${sp.machine}:${root}` : root;
         } catch (error) {
           // git couldn't run (machine unreachable, timeout): leave the space unresolved and retry on a later render.
           console.log(`pokedex-agents: project key for ${sp.name} not resolved: ${error}`);
