@@ -41,6 +41,7 @@ You start by choosing **Bulbasaur, Charmander or Squirtle** on the trainer card 
 - A turn's results pay on top: **+20** when the agent committed (Herdr checks the repo's HEAD before and after the turn), **+30** for green tests, **+50 and an Ultra Ball** for a merge. Herdr reports commits only; green and merged come from other clients.
 - **10 XP** for each finished sub-agent
 - **Daily diminishing returns**, the same in 1 repo or 10: the day's turns 1-5 pay in full, 6-20 pay 40%, 21-50 pay 10%, then 3%
+- **Rested XP** for time away: each day off beyond the two a week a streak allows banks one day of your own average XP, up to three days of it, and XP counts **double** until the bank is spent. A normal weekend banks nothing, so a weekend off costs you nothing and a holiday gives you a running start.
 - Level *n* costs `4 × n²` XP, so Lv16 is 1,024 XP and Lv100 is 40,000
 
 Party Pokémon **evolve at their real Gen 1 levels** and keep their XP. Charmander becomes Charmeleon at 16. Dratini makes you wait until 30, then 55. Magikarp is still Magikarp until 20.
@@ -65,7 +66,7 @@ Nothing pops up by itself (unless you ask for it, see Settings). The status bar 
 
 ![A wild Charizard appeared, over the workspace](docs/wild-encounter.png)
 
-- You get **3 free Poké Balls**. Great Balls (×1.5) and Ultra Balls (×2) come from your bag.
+- You get **3 free Poké Balls** per encounter, then any Poké Balls in your bag. Great Balls (×1.5) and Ultra Balls (×2) come from the bag too.
 - Base catch odds: **60%** for most, **35%** for final evolutions, **3%** for legendaries.
 - **Keep working and it weakens.** Each task finished while it waits adds +25% to your odds, up to three times.
 - Ignore it for a day and it flees.
@@ -92,14 +93,25 @@ The same as commands, for `keys.json` or `herdr-app do`: `pokedex-console.alert-
 | How | What you get |
 |---|---|
 | First task of the day | a Great Ball |
-| Every 7th streak day | an Ultra Ball |
+| Every 7 streak days | an Ultra Ball |
 | A task that ran 10+ minutes | a Great Ball |
 | A task that ran an hour | a Link Cable |
 | Any task, 5% of the time | a random stone |
-| A daily quest | 2 Great Balls |
-| The weekly quest | 2 Ultra Balls and a stone |
+| A daily quest: Bronze, then Silver, then Gold | a Great Ball, then 2, then an Ultra Ball and 50 PokéDollars |
+| The weekly quest: Bronze, Silver, Gold | an Ultra Ball each, plus a stone at Silver and 200 PokéDollars at Gold |
+| Professor Oak's five first steps | 5 Poké Balls |
 
-Three daily quests and one weekly quest rotate by date. Hold a **7-day streak** and new catches have a 1-in-8 chance of being **shiny**; at **30 days** it's 1 in 4. Shinies twinkle with a gold star in the pane header.
+### Quests sized to you
+
+Three daily quests (one of them always a task quest) and one weekly. Each has **Bronze, Silver and Gold** at **50%, 100% and 150% of your own median** over the past two weeks, never below a floor: a quiet week asks less of you, a heavy one asks more, so a casual player and someone running ten repos are set the same kind of challenge.
+
+A quest is only offered when your **last 30 days** show you can do it, so you are never asked for two repos or two agents you don't use. One daily quest that hasn't paid yet can be **rerolled** once a day, with the button on the trainer card.
+
+### Streaks, freezes and shinies
+
+The streak counts **days, not amount**: a day keeps it when **5 of the 7 days** ending with it were active, so any two days off a week are fine, whether or not they're the weekend. A **Streak Freeze** arrives every 7 active days (2 at most) and spends itself on a missing day that would otherwise break the streak; the trainer card shows how many you hold.
+
+Hold a **7-day streak** and new catches have a 1-in-8 chance of being **shiny**; at **30 days** it's 1 in 4. Shinies twinkle with a gold star in the pane header.
 
 ### Badges
 
@@ -108,21 +120,21 @@ Three daily quests and one weekly quest rotate by date. Hold a **7-day streak** 
 | Boulder | Catching 10 Pokémon |
 | Cascade | Finishing 50 agent tasks |
 | Thunder | Evolving a partner |
-| Rainbow | A 3-day streak |
+| Rainbow | A 2-week streak |
 | Soul | Catching 75 Pokémon |
 | Marsh | Finishing 500 agent tasks |
-| Volcano | A 30-day streak |
+| Volcano | An 8-week streak |
 | Earth | Catching all 151 |
 | *Elite Four* | Finishing 1,000 agent tasks |
 | *Champion* | All 8 Kanto badges |
 
 ### The trainer card and the Kanto Dex
 
-Click the footer for your **trainer card**: your starter choice or party (lead, Day Care, XP, stones), waiting gifts, trainer level, streak, encounter record, badges, bag, today's quests and recent catches.
+Click the footer for your **trainer card**: your trainer level and totals first, then today's quests with the tier you've reached and a Reroll button, your party (lead, Day Care, XP, stones), badges, your bag with your PokéDollars and any Rested XP waiting, and your recent catches. Your starter choice, waiting gifts and, on a new save, Professor Oak's five first steps sit at the top until they're done.
 
 <img src="docs/trainer-card.png" alt="The trainer card: stats, badges, bag, quests, recent catches and partners" width="520">
 
-Click **Kanto Dex** in the agents list for all 151. Caught ones light up, shinies get a gold frame, and you can search by name or number.
+Click **Kanto Dex** in the agents list for all 151. Your catches are lit, the ones you're missing stay dim but searchable, shinies get a gold mark, and you can search by name or number.
 
 <img src="docs/kanto-dex.png" alt="The Kanto Pokédex: a searchable grid of all 151, caught ones highlighted" width="720">
 
@@ -173,6 +185,10 @@ Herdr's shipped `files`, `changes`, `menu`, `new-menu`, `worktree` and
 This is a layout package, not the Herdr application source.
 
 Your progress is kept by the Pokedex agents server, in `~/.local/state/pokedex-agents-server/`, never in this repo. Herdr's `shared.json` holds a copy that the server keeps current. Agents count only while Herdr is open. Progress follows each project's git repo, so renaming a space keeps its partner and XP. The first time Herdr connects, it merges any progress it saved on its own before this into the server's save, once.
+
+**Your project names stay on your machine.** The save keys each project by a hash, so it holds no repo path, machine name, space name or branch name. The readable names live beside it in `local.json`, which the server sends to the mods so cards still read `eot-app`, and which no export, import or merge ever carries.
+
+**Nothing is lost when the server is down.** Each report carries the moment it happened; one the server can't take waits in this layout's local storage and goes out, oldest first, once it answers again, counted on its own day. Today's quests and your live streak come computed from the server, so the mods draw what it decides rather than their own copy of the rules, and the footer says to run `scripts/sync-game.sh` when its rules version differs from theirs.
 
 Want to build it from an empty folder instead? [RECIPE.md](RECIPE.md) is the brief.
 
