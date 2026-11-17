@@ -180,19 +180,20 @@ export default class Agents extends View {
 
   // Each space's project key is the git repo root of its first terminal's live folder (machine-qualified
   // when remote), so progress survives a renamed or recreated space. Not `space.folder`: that is where the
-  // space was created, and many spaces share it. Resolved once per space name; existing progress moves to
-  // the key. A space whose terminals report no folder yet is tried again on a later render.
+  // space was created, and many spaces share it. Worked out again whenever that folder changes: a new space
+  // starts in the folder of the one it was opened from, and keeping that first key would make it share the
+  // other space's mascot. Existing progress moves to the key. A space whose terminals report no folder yet
+  // is tried again on a later render.
   resolveProjects(cx) {
     this.resolving ??= new Set();
+    this.resolvedFrom ??= {};
     const known = shared(PROJECTS) ?? {};
     const allPanes = panes();
     for (const sp of spaces()) {
-      // A space keyed by its own name was resolved under the old rule (name when not in a repo): its
-      // key is worked out again, so it matches pokemon-rex's (repo, else folder) and its progress moves.
-      if (!sp.name || (sp.name in known && known[sp.name] !== sp.name) || this.resolving.has(sp.name)) continue;
+      if (!sp.name || this.resolving.has(sp.name)) continue;
       const tabs = new Set(sp.tabs.map((tab) => tab.id));
       const cwd = allPanes.find((p) => p.terminal && p.cwd && tabs.has(p.tab))?.cwd;
-      if (!cwd) continue;
+      if (!cwd || this.resolvedFrom[sp.name] === cwd) continue;
       this.resolving.add(sp.name);
       cx.spawn(async () => {
         let key;
@@ -208,7 +209,8 @@ export default class Agents extends View {
           this.resolving.delete(sp.name);
           return;
         }
-        await send("resolveProject", sp.name, key);
+        if (known[sp.name] !== key) await send("resolveProject", sp.name, key);
+        this.resolvedFrom[sp.name] = cwd;
         this.resolving.delete(sp.name);
       });
     }
