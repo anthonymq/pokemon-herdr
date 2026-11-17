@@ -1,8 +1,8 @@
 import { View, div, image } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { agents, focused, props, run, spaces, shared, openOverlay, exec, theme, nextCommand, notify } from "herdr";
-import { game, trainerLevel, options, BADGES, CAUGHT, ALERTS, ENCOUNTER_MS, WILD_MAX } from "./game.js";
-import { call, streakNow, rulesMismatch } from "./server.js";
+import { game, trainerLevel, options, BADGES, CAUGHT, ALERTS, ENCOUNTER_MS, WILD_MAX, STREAK_NEED } from "./game.js";
+import { call, streakNow, weekNow, rulesMismatch } from "./server.js";
 
 // Game options, as commands (keys.json, the palette, herdr-app do): pokedex-console.alert-off,
 // .alert-on, .alert-smart, .hard-mode-on, .hard-mode-off. Each sets a fixed value, so the several
@@ -149,7 +149,8 @@ export default class PokedexConsole extends View {
       .when(!compact && Boolean(news), el => el
         .child(div().flex_1().min_w(0).truncate().font_semibold().text_color(C.housing).child(news)))
       .when(!compact && !news, el => el
-        .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(`\u2668${streak}`))
+        // Until a streak starts, the week's active days toward one.
+        .child(div().flex_none().font_semibold().text_color(streak ? "#b4472f" : C.ink + "80").child(streak ? `\u2668${streak}` : `\u2668${weekNow(g)}/${STREAK_NEED}`))
         .child(div().flex_1())
         .children(BADGES.filter(b => !b.rank).map(b => image(`mods/pokedex-trainer/badges/${b.id}.png`).size(13).flex_none()
           .when(!g.badges.includes(b.id), el => el.opacity(0.25)))));

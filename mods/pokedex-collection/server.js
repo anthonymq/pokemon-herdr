@@ -3,7 +3,7 @@
 // game() and shared("pokedex.*") read as before in every mod. Copied to each mod by scripts/sync-game.sh.
 import { WebSocket } from "websocket";
 import { shared, setShared, notify, exec, agents } from "herdr";
-import { shouldAlert, quests, liveStreak, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
+import { shouldAlert, quests, liveStreak, liveWeek, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
 
 export const SERVER = "127.0.0.1:7151";
 const KEYS = ["pokedex.game", "pokedex.caught", "pokedex.partners", "pokedex.projects"];
@@ -11,12 +11,14 @@ const KEYS = ["pokedex.game", "pokedex.caught", "pokedex.partners", "pokedex.pro
 // key and saved key -> label maps are kept on this machine by the server (see game.js).
 const MIRRORED = [...KEYS, OPTIONS, KEY_MAP, LABELS];
 
-// What the server computed from its clock (today's quests, the live streak), mirrored here: drawn as
+// What the server computed from its clock (today's quests, the live streak, the week), mirrored here: drawn as
 // sent, so an older or newer copy of the rules in a mod never shows different ones. An older server
 // sends none, and the mod's own copy is used.
 export const VIEW = "pokedex.view";
 export const questsNow = (g) => shared(VIEW)?.quests ?? quests(g);
 export const streakNow = (g) => shared(VIEW)?.streak ?? liveStreak(g);
+// The active days among the last 7: shown out of STREAK_NEED while the streak is 0.
+export const weekNow = (g) => shared(VIEW)?.week ?? liveWeek(g);
 // The server's rules version when it differs from this copy's (time to run scripts/sync-game.sh).
 export const rulesMismatch = () => { const v = shared(VIEW); return v && v.rules !== RULES_VERSION ? v.rules : null; };
 

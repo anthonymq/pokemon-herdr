@@ -1,8 +1,8 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay, openOverlay } from "herdr";
-import { call, shareOnX, questsNow, streakNow } from "./server.js";
-import { game, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, progress, partyOf, itemsFor, trainerLevel, nameOf } from "./game.js";
+import { call, shareOnX, questsNow, streakNow, weekNow } from "./server.js";
+import { game, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, STREAK_NEED, progress, partyOf, itemsFor, trainerLevel, nameOf } from "./game.js";
 
 // One dark LCD screen; sections are tonal surfaces (panel, then raised for the lead), never outlines.
 // Gold marks what's best (the lead, Gold quests, shinies); the LCD green fills progress bars.
@@ -76,11 +76,14 @@ export default class PokedexTrainer extends View {
   identity(g, party, caught) {
     const tr = trainerLevel(g), lo = 40 * tr ** 2, hi = 40 * (tr + 1) ** 2;
     const enc = g.encounters, lead = party[0];
-    const freezes = g.streak.freezes ?? 0;
+    const freezes = g.streak.freezes ?? 0, streak = streakNow(g);
+    const frozen = freezes ? ` \u00b7 ${freezes} freeze${freezes > 1 ? "s" : ""}` : "";
     const facts = [
       this.fact("Caught", `${caught.length}/151`, g.shiny.length ? `${g.shiny.length} shiny` : null),
       this.fact("Tasks", g.tasks, g.subtasks ? `+${g.subtasks} sub` : null),
-      this.fact("Streak", `${streakNow(g)}d`, `best ${g.streak.best}d${freezes ? ` \u00b7 ${freezes} freeze${freezes > 1 ? "s" : ""}` : ""}`),
+      // Until a streak starts, the week's active days toward one.
+      streak ? this.fact("Streak", `${streak} day${streak > 1 ? "s" : ""}`, `best ${g.streak.best}${frozen}`)
+        : this.fact("Streak", `${weekNow(g)}/${STREAK_NEED}`, `days this week \u00b7 best ${g.streak.best}${frozen}`),
       this.fact("Wild", `${enc.caught}/${enc.seen}`, enc.fled ? `${enc.fled} fled` : null),
     ];
     return h_flex().flex_none().p(10).gap(12).items_center().rounded(6).bg(C.panel)
