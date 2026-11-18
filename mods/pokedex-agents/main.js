@@ -157,14 +157,7 @@ function petScene(a) {
 export default class Agents extends View {
   init(_props, cx) {
     if (props()?.sortMenu) return;
-    // One copy keeps Herdr's shared state in step with the Pokedex server. The mark is this build's,
-    // so a hot reload (whose old tasks stop) starts a fresh mirror.
-    if (globalThis.pokedexMirror !== BUILD) {
-      globalThis.pokedexMirror = BUILD;
-      cx.spawn(async (cx) => {
-        try { await mirror(cx); } finally { if (globalThis.pokedexMirror === BUILD) globalThis.pokedexMirror = null; }
-      });
-    }
+    this.keepMirror(cx);
     this.folded = new Set();
     // The Idle section picks tiles or small sprites by how many there are (IDLE_FEW); a click on
     // its heading shows the other until the count crosses the threshold again.
@@ -175,7 +168,19 @@ export default class Agents extends View {
     this.pendingPins = JSON.parse(localStorage.getItem("pins") ?? "[]");
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
-    cx.timer.every(30000, (cx) => cx.notify());
+    cx.timer.every(30000, (cx) => { this.keepMirror(cx); cx.notify(); });
+  }
+
+  // One copy keeps Herdr's shared state in step with the Pokedex server. The mark is this build's,
+  // so a hot reload (whose old tasks stop) starts a fresh mirror. The mirror ends with the copy that
+  // started it (its cx throws once that copy closes): every copy checks again on its timer, so
+  // another one takes over instead of leaving Herdr's state frozen.
+  keepMirror(cx) {
+    if (globalThis.pokedexMirror === BUILD) return;
+    globalThis.pokedexMirror = BUILD;
+    cx.spawn(async (cx) => {
+      try { await mirror(cx); } finally { if (globalThis.pokedexMirror === BUILD) globalThis.pokedexMirror = null; }
+    });
   }
 
   // Each space's project key is the git repo root of its first terminal's live folder (machine-qualified
