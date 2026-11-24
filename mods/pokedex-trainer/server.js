@@ -1,11 +1,26 @@
-// The Pokedex agents server (its own repo, pokedex-agents-server; http://127.0.0.1:7151) owns the game: every change
+// The Pokedex agents server (its own repo, pokedex-agents-server; http://127.0.0.1:7151 unless its config says otherwise) owns the game: every change
 // goes through call(). pokedex-agents keeps Herdr's shared state a mirror of it (mirror()), so
 // game() and shared("pokedex.*") read as before in every mod. Copied to each mod by scripts/sync-game.sh.
 import { WebSocket } from "websocket";
-import { shared, setShared, notify, exec, agents } from "herdr";
+import { shared, setShared, notify, exec, agents, playSound, window } from "herdr";
 import { shouldAlert, quests, liveStreak, liveWeek, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
 
-export const SERVER = "127.0.0.1:7151";
+// The server's address: its port from POKEDEX_PORT, else "port" in config.json in its state folder
+// (as the server reads it), else 7151. Read once per copy of this file.
+let address = null;
+export function server() {
+  address ??= exec("sh", ["-c", 'echo "${POKEDEX_PORT:-}"; cat "${POKEDEX_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/pokedex-agents-server}/config.json" 2>/dev/null'], { timeout: 5000 })
+    .then((r) => {
+      const [env, ...config] = r.stdout.split("\n");
+      let port = Number(env);
+      if (!port) try { port = Number(JSON.parse(config.join("\n")).port); } catch {}
+      return `127.0.0.1:${port || 7151}`;
+    })
+    .catch(() => "127.0.0.1:7151");
+  return address;
+}
+// Set once Herdr's own save was merged into the server's (or there was none), so it never is again.
+const HERDR_MERGED = "pokedex.herdrMerged";
 const KEYS = ["pokedex.game", "pokedex.caught", "pokedex.partners", "pokedex.projects"];
 // Mirrored too, but never merged: the options belong to the server's save; the readable key -> saved
 // key and saved key -> label maps are kept on this machine by the server (see game.js).
@@ -24,7 +39,7 @@ export const rulesMismatch = () => { const v = shared(VIEW); return v && v.rules
 
 // One request; throws only when the server can't be reached.
 async function post(action, args, at) {
-  const res = await fetch(`http://${SERVER}/call`, {
+  const res = await fetch(`http://${await server()}/call`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action, args, origin: "herdr", ...(at ? { at } : {}) }),
@@ -82,13 +97,18 @@ async function report(action, args) {
 export async function shareOnX() {
   let r;
   try {
-    r = await (await fetch(`http://${SERVER}/share`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
+    r = await (await fetch(`http://${await server()}/share`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).json();
   } catch (error) {
     throw new Error(`Pokedex server not reachable: ${error}`);
   }
   if (!r.ok) throw new Error(r.error);
-  await exec("open", [r.url], { timeout: 5000 });
-  return r.copied ? "Card copied: paste it into the post (⌘V)" : "X opened; the card couldn't be copied";
+  const platform = window().platform;
+  if (platform === "macos") await exec("open", [r.url], { timeout: 5000 });
+  else if (platform === "windows") await exec("cmd", ["/c", "start", "", r.url], { timeout: 5000 });
+  // WSL has no xdg-open by default: wslview, else Windows' own opener.
+  else await exec("sh", ["-c", 'xdg-open "$1" || wslview "$1" || explorer.exe "$1"', "sh", r.url], { timeout: 5000 });
+  const paste = platform === "macos" ? "⌘V" : "Ctrl+V";
+  return r.copied ? `Card copied: paste it into the post (${paste})` : `X opened; attach the card from ${r.card}`;
 }
 
 // For changes nobody waits on: a failure is logged, not thrown. Agent reports are queued while the
@@ -116,26 +136,46 @@ async function startServer() {
 // shared state (only the keys that changed, so mods redraw only on real news), and news this app
 // caused is shown as a toast. Quiet news (level-ups, items, quests) is never shown; a new wild Pokemon
 // only when shouldAlert() allows it for the agents busy right now (else it just waits in the tall grass). On the first state it merges Herdr's old save into the server's, once.
+// The server is started only when it can't be reached; any other failure just backs off.
 export async function mirror(cx) {
   const since = Date.now();
-  let shown = since, tries = 0, merged = false;
+  let shown = since, tries = 0, merged = false, started = false;
   for (;;) {
+    let ws;
     try {
-      const ws = await WebSocket.connect(`ws://${SERVER}/ws`);
-      tries = 0;
+      ws = await WebSocket.connect(`ws://${await server()}/ws`);
+    } catch (error) {
+      tries++;
+      if (!started) { // once until a state is mirrored again
+        started = true;
+        console.log(`pokedex: server not reachable (${error}); starting it`);
+        try { await startServer(); } catch (e) { console.log(`pokedex: could not start the server: ${e}`); }
+      }
+      await cx.sleep(Math.min(10000, 1000 * tries));
+      continue;
+    }
+    try {
       flushOutbox(); // reports queued while it was out of reach
       for (;;) {
         const msg = await ws.read();
         const state = JSON.parse(typeof msg === "string" ? msg : new TextDecoder().decode(msg));
         if (!merged) {
-          const mine = Object.fromEntries(KEYS.map((k) => [k, shared(k)]));
-          if (!(state.shared["pokedex.merged"] ?? []).includes("herdr") && Object.values(mine).some((v) => v !== undefined)) {
+          // Done before: flagged here, recorded by the server, or Herdr already holds keys only the
+          // mirror writes (so its save is a copy of the server's, which must never be added again).
+          const done = shared(HERDR_MERGED) === true || (state.shared["pokedex.merged"] ?? []).includes("herdr")
+            || shared(VIEW) != null || shared(KEY_MAP) != null;
+          const mine = Object.fromEntries(KEYS.map((k) => [k, shared(k)]).filter(([, v]) => v != null));
+          if (!done && Object.keys(mine).length) {
             await call("merge", "herdr", mine); // throws until it succeeds: nothing is mirrored before
+            setShared(HERDR_MERGED, true);
             merged = true;
             continue; // the merged state comes next
           }
+          if (shared(HERDR_MERGED) !== true) setShared(HERDR_MERGED, true);
           merged = true;
         }
+        tries = 0;
+        started = false;
         for (const k of MIRRORED) {
           const v = state.shared[k];
           if (v !== undefined && JSON.stringify(v) !== JSON.stringify(shared(k))) setShared(k, v);
@@ -144,6 +184,8 @@ export async function mirror(cx) {
         for (const n of state.notes ?? []) {
           if (n.origin !== "herdr" || n.at <= shown) continue;
           shown = n.at;
+          // A jingle the server couldn't play itself (no afplay off macOS).
+          if (n.sound === "evolve.mp3" || n.sound === "badge.mp3") playSound(`mods/pokedex-agents/sounds/${n.sound}`);
           if (n.quiet) continue;
           if (n.encounter && !shouldAlert(agents().filter((a) => a.status === "working").length)) continue;
           notify({ title: n.title, body: n.body, level: n.level, icon: n.icon ?? undefined, action: n.action ?? undefined, timeout: n.timeout ?? undefined });
@@ -151,11 +193,9 @@ export async function mirror(cx) {
         cx.notify();
       }
     } catch (error) {
-      if (tries++ === 0) {
-        console.log(`pokedex: server connection lost (${error}); starting it`);
-        try { await startServer(); } catch (e) { console.log(`pokedex: could not start the server: ${e}`); }
-      }
+      tries++; // connected, then failed (dropped, refused, bad state): back off, never start another server
+      console.log(`pokedex: server connection lost (${error})`);
     }
-    await cx.sleep(Math.min(10000, 1000 * tries));
+    await cx.sleep(Math.min(10000, 1000 * Math.max(1, tries)));
   }
 }

@@ -152,7 +152,7 @@ Click **Kanto Dex** in the agents list for all 151. Your catches are lit, the on
 | `cmd-shift-k` | pin or unpin the focused agent |
 | `cmd-e` | flip between your tabs and one agent, full size |
 
-Merge that section into your own `keys.json`, and change the picker keys if yours differ.
+Merge that section into your own `keys.json`, and change the picker keys if yours differ. On Linux and Windows there is no `cmd`: pick free `ctrl-shift` keys instead (for example `ctrl-shift-y` for the picker, `ctrl-shift-u` / `ctrl-shift-i` for the agent jump and peek), avoiding the plain `ctrl` letters your shell uses.
 
 Also: the blue lens opens the command palette, a Pokémon portrait changes that project's mascot, and the sidebar folds down to a 76px rail.
 
