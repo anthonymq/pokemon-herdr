@@ -38,7 +38,7 @@ The window has no system title bar. On macOS the window buttons sit at 12, 16 px
 
 - **Working:** the sprite bobs 3 px over 1 s, the card shows a spinning ring and WORKING, the brand plate's cyan light comes on, and the pane badge reads BUSY.
 - **Blocked (needs you):** the sprite pulses between 55% and 100% opacity over 0.8 s, with a red "!" in the corner and a red "!" chip next to NEEDS YOU on the card. The yellow brand light comes on and the space row shows "!". Sub-agent strips use a "!" chip in Priority view and a NEEDS YOU chip in Grouped view.
-- **Done:** a "✦" sparkle, a filled dot and DONE. The space row shows "*". Once someone looks at the agent, Herdr turns it to idle.
+- **Done:** a "✦" sparkle, a filled dot and DONE. The space row shows "*". Herdr turns it to idle once its tab is shown, but the Agents tiles keep DONE until that agent's pane gets the keyboard (a finish watched in its own pane stays DONE until you leave and come back, or click it); working or needing you again ends it. The holds are kept in the mod's localStorage under `held`.
 - **Idle:** a "z" over the sprite, an empty ring and IDLE in softer ink.
 
 A sub-agent reporting `error` counts as blocked. A sub-agent never shows done: its parent carries that news. A parent sorts by its most urgent sub-agent.

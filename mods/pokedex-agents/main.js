@@ -166,6 +166,8 @@ export default class Agents extends View {
     // Each agent's last state and when it changed (ms), kept across restarts.
     this.changed = JSON.parse(localStorage.getItem("changed") ?? "{}");
     this.pendingPins = JSON.parse(localStorage.getItem("pins") ?? "[]");
+    // Finished agents shown DONE until their pane gets the keyboard (holdDone), kept across restarts.
+    this.held = JSON.parse(localStorage.getItem("held") ?? "{}");
     if (!this.pendingPins.length) localStorage.removeItem("pins");
     this.migratingPins = new Set();
     cx.timer.every(30000, (cx) => { this.keepMirror(cx); cx.notify(); });
@@ -278,7 +280,11 @@ export default class Agents extends View {
 
   // A click on an agent goes to its pane; one that is done and already there has now been looked at.
   go(a, cx) {
-    if (a.focused && a.status === "done") this.mark(cx, a.address, true);
+    if (a.focused && a.status === "done") {
+      this.mark(cx, a.address, true);
+      delete this.held[a.address];
+      localStorage.setItem("held", JSON.stringify(this.held));
+    }
     run("pane.focus", { pane: a.pane });
   }
 
@@ -392,6 +398,35 @@ export default class Agents extends View {
 
   since(a) {
     return this.changed[a.address]?.at ?? 0;
+  }
+
+  // A finish stays DONE here until its pane gets the keyboard. Herdr turns done into idle once you
+  // look, and showing the tab counts as looking even while another pane has the keyboard. `away`
+  // says the pane lost the keyboard after the finish, so a finish watched in its own pane stays
+  // DONE until you leave and come back (or click it). Working or blocked again ends the hold.
+  holdDone(list, cx) {
+    if (!list.length) return list; // empty right after a start: keep the holds
+    this.rawPrev ??= {};
+    const shown = focused()?.agent;
+    const held = {};
+    for (const a of list) {
+      const prev = this.rawPrev[a.address];
+      this.rawPrev[a.address] = a.status;
+      let h = this.held[a.address];
+      if (a.status === "working" || a.status === "blocked") h = undefined;
+      else if (!h && (a.status === "done" || (prev === "working" && a.status === "idle"))) h = { away: shown !== a.address };
+      if (h && shown !== a.address) h = { away: true };
+      if (h?.away && shown === a.address) {
+        h = undefined;
+        if (a.status === "done") this.mark(cx, a.address, true);
+      }
+      if (h) held[a.address] = h;
+    }
+    if (JSON.stringify(held) !== JSON.stringify(this.held)) {
+      this.held = held;
+      localStorage.setItem("held", JSON.stringify(held));
+    }
+    return list.map((a) => (held[a.address] && a.status === "idle" ? { ...a, status: "done" } : a));
   }
 
   rank(a) {
@@ -543,6 +578,7 @@ export default class Agents extends View {
     this.resolveProjects(cx);
     this.savePartners(list);
     this.trackSubAgents(list, terminals());
+    list = this.holdDone(list, cx);
     // A kept sub-agent (one with a pane) is in agents() too: where a tree shows
     // it, it gets no row of its own, unless it's pinned.
     const nested = new Set(collapsed ? [] : list.flatMap((a) => this.tree(all, a.address).map((s) => s.t.address)));
