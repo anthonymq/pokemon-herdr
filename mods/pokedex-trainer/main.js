@@ -93,9 +93,7 @@ export default class PokedexTrainer extends View {
         .child(div().font_family(PIXEL).text_size(20).text_color(C.cream).child(`TRAINER LV ${tr}`))
         .child(this.bar(Math.min(1, (g.lifetime - lo) / (hi - lo)), 5))
         .child(div().text_size(10).text_color(C.muted).child(`${g.lifetime} / ${hi} XP`)))
-      .child(v_flex().flex_1().min_w(0).gap(6)
-        .child(h_flex().gap(10).child(div().flex_1().min_w(0).child(facts[0])).child(div().flex_1().min_w(0).child(facts[1])))
-        .child(h_flex().gap(10).child(div().flex_1().min_w(0).child(facts[2])).child(div().flex_1().min_w(0).child(facts[3]))));
+      .child(h_flex().flex_1().min_w(0).gap(16).pl(12).children(facts.map(f => div().flex_1().min_w(0).child(f))));
   }
 
   // A Pokemon to pick (a starter, a gift): its sprite and name, clickable.
@@ -162,7 +160,7 @@ export default class PokedexTrainer extends View {
         .child(q.tier ? TIERS[q.tier - 1] : "\u2014"))
       .child(div().flex_1().min_w(0).truncate().text_color(q.done ? C.muted : C.cream).child(q.goal))
       .when(!q.done, el => el.child(div().flex_none().text_size(10).text_color(C.muted).child(q.reward)))
-      .child(div().flex_none().w(44).text_size(12).font_semibold().text_color(q.done ? C.gold : C.cream).child(`${q.n}/${q.need}`))
+      .child(div().flex_none().min_w(44).whitespace_nowrap().text_size(12).font_semibold().text_color(q.done ? C.gold : C.cream).child(`${q.n}/${q.need}`))
       .when(q.rerollable, el => el.child(this.link(`reroll-${q.id}`, "Reroll", "Swap it for another quest (once a day)",
         (_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); })));
   }
@@ -306,31 +304,37 @@ export default class PokedexTrainer extends View {
         .when(Boolean(overlay), el => el.child(div().id("trainer-close").size(28).flex().items_center().justify_center()
           .rounded(4).cursor_pointer().hover(el => el.bg(C.panel)).on_click(() => closeOverlay(overlay))
           .child(svg("mods/pane/close.svg").size(13)))))
+      // What needs a choice first, full width; then who you are; then two columns: what you're working
+      // toward (quests, gym, bag) on the left, what you have (party, badges, catches) on the right. The
+      // body still scrolls if a small window squeezes the dialog.
       .child(v_flex().id("trainer-body").flex_1().min_h(0).gap(6).pr(4).overflow_y_scrollbar()
         .when(g.lifetime > 0 && !g.seen.includes("phase2"), el => el.child(this.explainer()))
         .when(Array.isArray(g.tutorial), el => el.child(this.oak(g)))
         .when(party.length === 0, el => el.child(this.starter(g)))
         .children(g.gifts.pending.map(t => this.gift(t)))
         .child(this.identity(g, party, caught))
-        .child(this.section("QUESTS"))
-        .child(v_flex().flex_none().gap(3).children(questsNow(g).map(q => this.quest(q))))
-        .when(Boolean(gymView), el => el.child(this.section(gymView.gym ? "GYM" : gymView.league ? "ELITE FOUR" : "HALL OF FAME")).child(this.gym(gymView)))
-        .when(party.length > 0, el => el
-          .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
-            "Add catches to your party or take them out",
-            () => openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { party: true } }))))
-          .child(v_flex().flex_none().gap(6).children(this.partyRows(party, g))))
-        .child(this.section("BADGES"))
-        .child(h_flex().flex_none().px(6).py(8).rounded(6).bg(C.panel).children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
-        .when(g.medals.length + g.classic.length > 0, el => el.child(this.medals(g)))
-        .child(this.section("BAG"))
-        .child(this.bag(g))
-        .child(this.section("RECENT CATCHES"))
-        .child(h_flex().flex_none().px(8).py(4).gap(4).items_center().rounded(6).bg(C.panel)
-          .when(g.recent.length === 0, el => el.child(div().py(8).text_size(12).text_color(C.muted).child("Nothing caught yet.")))
-          .children(g.recent.map(({ id }) => v_flex().id(`recent-${id}`).flex_none().items_center()
-            .tooltip(`#${String(id).padStart(3, "0")} ${nameOf(id)}${g.shiny.includes(id) ? " (shiny)" : ""}`)
-            .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(36))
-            .child(div().size(4).rounded(2).bg(g.shiny.includes(id) ? C.gold : C.panel))))));
+        .child(h_flex().flex_none().gap(14).items_start()
+          .child(v_flex().flex_1().min_w(0).gap(6)
+            .child(this.section("QUESTS"))
+            .child(v_flex().flex_none().gap(3).children(questsNow(g).map(q => this.quest(q))))
+            .when(Boolean(gymView), el => el.child(this.section(gymView.gym ? "GYM" : gymView.league ? "ELITE FOUR" : "HALL OF FAME")).child(this.gym(gymView)))
+            .child(this.section("BAG"))
+            .child(this.bag(g)))
+          .child(v_flex().flex_1().min_w(0).gap(6)
+            .when(party.length > 0, el => el
+              .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
+                "Add catches to your party or take them out",
+                () => openOverlay({ mod: "pokedex-collection", kind: "dialog", width: 820, height: 680, props: { party: true } }))))
+              .child(v_flex().flex_none().gap(6).children(this.partyRows(party, g))))
+            .child(this.section("BADGES"))
+            .child(h_flex().flex_none().px(6).py(8).rounded(6).bg(C.panel).children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
+            .when(g.medals.length + g.classic.length > 0, el => el.child(this.medals(g)))
+            .child(this.section("RECENT CATCHES"))
+            .child(h_flex().flex_none().px(8).py(4).gap(4).items_center().overflow_hidden().rounded(6).bg(C.panel)
+              .when(g.recent.length === 0, el => el.child(div().py(8).text_size(12).text_color(C.muted).child("Nothing caught yet.")))
+              .children(g.recent.map(({ id }) => v_flex().id(`recent-${id}`).flex_none().items_center()
+                .tooltip(`#${String(id).padStart(3, "0")} ${nameOf(id)}${g.shiny.includes(id) ? " (shiny)" : ""}`)
+                .child(image(`mods/pokedex-agents/pokemon/${id}.png`).size(36))
+                .child(div().size(4).rounded(2).bg(g.shiny.includes(id) ? C.gold : C.panel))))))));
   }
 }
