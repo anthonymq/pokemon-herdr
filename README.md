@@ -67,7 +67,7 @@ Nothing pops up by itself (unless you ask for it, see Settings). The status bar 
 ![A wild Charizard appeared, over the workspace](docs/wild-encounter.png)
 
 - You get **3 free Poké Balls** per encounter, then any Poké Balls in your bag. Great Balls (×1.5) and Ultra Balls (×2) come from the bag too.
-- Base catch odds: **60%** for most, **35%** for final evolutions, **3%** for legendaries.
+- Base catch odds: **60%** for most, **35%** for final evolutions and for legendaries, which come from milestones (a bird for three weekly quests in a row, Mewtwo for the Champion, Mew after the other 150) and wait until caught. 40% of wild Pokémon are species you don't have yet.
 - **Keep working and it weakens.** Each task finished while it waits adds +25% to your odds, up to three times.
 - Ignore it for a day and it flees.
 
@@ -115,18 +115,22 @@ Hold a **7-day streak** and new catches have a 1-in-8 chance of being **shiny**;
 
 ### Badges
 
-| Badge | Earn it by |
+Eight gyms, one open at a time, in order. Each one counts from the day it opens, and any one way beats it. Counts marked *(your pace)* ask for a few days of your own median, never less than shown, so a heavy week asks more of a heavy user.
+
+| Gym | Beat it by |
 |---|---|
-| Boulder | Catching 10 Pokémon |
-| Cascade | Finishing 50 agent tasks |
-| Thunder | Evolving a partner |
-| Rainbow | A 2-week streak |
-| Soul | Catching 75 Pokémon |
-| Marsh | Finishing 500 agent tasks |
-| Volcano | An 8-week streak |
-| Earth | Catching all 151 |
-| *Elite Four* | Finishing 1,000 agent tasks |
-| *Champion* | All 8 Kanto badges |
+| Brock · Boulder | Being active on 5 days |
+| Misty · Cascade | Answering 10 blocked agents within 2 minutes, **or** 12 blocked agents *(your pace)* |
+| Lt. Surge · Thunder | 10 commits, **or** 10 tasks with green tests or CI *(your pace)* |
+| Erika · Rainbow | 3 branches, agents or repos in one day, **or** 2+ of them on 5 days |
+| Koga · Soul | Silver on 10 daily quests, **or** Gold on 4 |
+| Sabrina · Marsh | 3 merged MRs, **or** 5 tasks that ran 10+ minutes *(your pace)* |
+| Blaine · Volcano | An 8-week streak, **or** 30 active days |
+| Giovanni · Earth | A Pokémon at Lv 50 and 100 caught, **or** Lv 50 and 30 caught while his gym is open |
+| *Elite Four* | After the 8th badge, one member a week: Lorelei (Silver on 3 daily quests), Bruno (3 fast answers, 5 commits or 5 answers), Agatha (2+ branches, agents or repos on 2 days), Lance (the weekly quest at Silver, or Silver on 6 daily quests). A short week is tried again the next one. |
+| *Champion* | Beating Lance: your team enters the Hall of Fame, and Mewtwo appears |
+
+Task counts are side medals, never required: Rookie (50 tasks), Veteran (500), Marathon (1,000). Badges earned before the gyms stay as **Classic** medals, and each gives its gym a 50% head start.
 
 ### The trainer card and the Kanto Dex
 

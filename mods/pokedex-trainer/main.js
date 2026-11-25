@@ -1,8 +1,8 @@
 import { View, div, image, svg } from "gpui-kit";
 import { h_flex, v_flex } from "gpui-base";
 import { shared, props, closeOverlay, openOverlay } from "herdr";
-import { call, shareOnX, questsNow, streakNow, weekNow } from "./server.js";
-import { game, BADGES, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, STREAK_NEED, progress, partyOf, itemsFor, trainerLevel, nameOf } from "./game.js";
+import { call, shareOnX, questsNow, streakNow, weekNow, gymNow } from "./server.js";
+import { game, BADGES, MEDALS, GYMS, ITEMS, CAUGHT, GIFTS, STARTERS, DAYCARE, PARTY_MAX, TIERS, TUTORIAL, STREAK_NEED, progress, partyOf, itemsFor, trainerLevel, nameOf } from "./game.js";
 
 // One dark LCD screen; sections are tonal surfaces (panel, then raised for the lead), never outlines.
 // Gold marks what's best (the lead, Gold quests, shinies); the LCD green fills progress bars.
@@ -13,8 +13,9 @@ const C = {
 const TIER_COLOR = ["#c98a4b", "#c9d3cc", C.gold];
 const PIXEL = "PxPlus IBM VGA 8x16";
 
-// The trainer card: who you are (lead, trainer level, totals), today's quests, the party, the eight
-// Kanto badges, the bag and recent catches. Above them while they apply: the starter choice, waiting
+// The trainer card: who you are (lead, trainer level, totals), today's quests, the open gym (or the
+// Elite Four, or the Hall of Fame), the party, the eight Kanto badges and side medals, the bag and
+// recent catches. Above them while they apply: the starter choice, waiting
 // gifts, Professor Oak's first steps, and once, for a save from before the party, what changed.
 export default class PokedexTrainer extends View {
   init(_props, cx) {
@@ -204,6 +205,59 @@ export default class PokedexTrainer extends View {
     return rows;
   }
 
+  // One way to win a gym: its goal, then each part's count against its need (all parts must hold).
+  option(o, i) {
+    const into = Math.min(...o.parts.map(p => p.n / p.need));
+    return h_flex().id(`gym-option-${i}`).h(24).px(8).gap(8).items_center().rounded(4).bg(C.raised).text_size(12)
+      .child(div().flex_none().w(18).font_family(PIXEL).text_size(11).text_color(C.muted).child(i ? "OR" : ""))
+      .child(div().flex_1().min_w(0).truncate().text_color(o.done ? C.muted : C.cream).child(o.goal.charAt(0).toUpperCase() + o.goal.slice(1)))
+      .child(div().w(60).flex_none().child(this.bar(into, 4)))
+      .child(div().flex_none().w(64).text_size(12).font_semibold().text_color(o.done ? C.gold : C.cream)
+        .child(o.parts.map(p => `${p.n}/${p.need}`).join(" + ")));
+  }
+
+  // The gym that's open (any one option beats it), the Elite Four member of the week, or the Hall of Fame.
+  gym(v) {
+    const head = (title, note) => h_flex().gap(8).items_center()
+      .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(13).text_color(C.cream).child(title))
+      .when(Boolean(note), el => el.child(div().flex_none().text_size(10).text_color(C.muted).child(note)));
+    const box = () => v_flex().id("trainer-gym").flex_none().p(8).gap(4).rounded(6).bg(C.panel);
+    if (v.gym) {
+      const x = v.gym;
+      return box()
+        .child(h_flex().gap(8).items_center()
+          .child(image(`mods/pokedex-trainer/badges/${x.id}.png`).size(20).flex_none().opacity(0.35))
+          .child(div().flex_1().child(head(`${x.leader.toUpperCase()} \u00b7 ${x.name.toUpperCase()} BADGE`,
+            `Gym ${x.index + 1}/${GYMS.length}${x.head ? " \u00b7 Classic head start" : ""}`))))
+        .children(x.options.map((o, i) => this.option(o, i)));
+    }
+    if (v.league) {
+      const x = v.league;
+      return box()
+        .child(head(`ELITE FOUR ${x.index + 1}/4 \u00b7 ${x.leader.toUpperCase()}`, x.waiting ? "From next Monday" : "This week only"))
+        .children(x.options.map((o, i) => this.option(o, i)));
+    }
+    if (!v.fame) return null;
+    return box()
+      .child(head("HALL OF FAME", `Champion since ${new Date(v.fame.at).toLocaleDateString()}`))
+      .child(h_flex().gap(6).children(v.fame.party.map(m => v_flex().id(`fame-${m.id}`).flex_none().items_center()
+        .tooltip(`${nameOf(m.id)} Lv${m.level}${m.shiny ? " (shiny)" : ""}`)
+        .child(image(`mods/pokedex-agents/pokemon/${m.id}.png`).size(40))
+        .child(div().text_size(10).text_color(m.shiny ? C.gold : C.muted).child(`Lv${m.level}`)))));
+  }
+
+  // Side medals and the Classic medals (badges from before the gyms): never required for anything.
+  medals(g) {
+    const chip = (id, color, label, tip) => h_flex().id(id).flex_none().gap(5).items_center().text_size(11).tooltip(tip)
+      .child(div().size(7).rounded(4).bg(color)).child(label);
+    const classic = BADGES.filter(b => g.classic.includes(b.id));
+    return h_flex().flex_none().px(10).py(6).gap_x(14).gap_y(6).flex_wrap().rounded(6).bg(C.panel)
+      .children([
+        ...MEDALS.filter(m => g.medals.includes(m.id)).map(m => chip(`medal-${m.id}`, m.color, m.name, m.goal)),
+        ...classic.map(b => chip(`classic-${b.id}`, b.color, `Classic ${b.name}`, "A badge from before the gyms: it gave its gym a head start")),
+      ]);
+  }
+
   badge(b, earned) {
     return v_flex().id(`badge-${b.id}`).flex_1().min_w(0).gap(3).items_center().tooltip(`${b.name} Badge \u00b7 ${b.goal}`)
       .child((b.rank
@@ -234,6 +288,8 @@ export default class PokedexTrainer extends View {
     const caught = shared(CAUGHT) ?? [];
     const party = partyOf(g);
     const overlay = props()?.overlay;
+    const v = gymNow(g);
+    const gymView = v.gym || v.league || v.fame ? v : null;
     return v_flex().id("pokedex-trainer").size_full().p(14).gap(8).bg(C.screen).border(4).border_color(C.housing).rounded(8)
       .text_color(C.cream).font_family("Geist")
       .track_focus(this.handle)
@@ -258,6 +314,7 @@ export default class PokedexTrainer extends View {
         .child(this.identity(g, party, caught))
         .child(this.section("QUESTS"))
         .child(v_flex().flex_none().gap(3).children(questsNow(g).map(q => this.quest(q))))
+        .when(Boolean(gymView), el => el.child(this.section(gymView.gym ? "GYM" : gymView.league ? "ELITE FOUR" : "HALL OF FAME")).child(this.gym(gymView)))
         .when(party.length > 0, el => el
           .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
             "Add catches to your party or take them out",
@@ -265,6 +322,7 @@ export default class PokedexTrainer extends View {
           .child(v_flex().flex_none().gap(6).children(this.partyRows(party, g))))
         .child(this.section("BADGES"))
         .child(h_flex().flex_none().px(6).py(8).rounded(6).bg(C.panel).children(BADGES.map(b => this.badge(b, g.badges.includes(b.id)))))
+        .when(g.medals.length + g.classic.length > 0, el => el.child(this.medals(g)))
         .child(this.section("BAG"))
         .child(this.bag(g))
         .child(this.section("RECENT CATCHES"))

@@ -3,7 +3,7 @@
 // game() and shared("pokedex.*") read as before in every mod. Copied to each mod by scripts/sync-game.sh.
 import { WebSocket } from "websocket";
 import { shared, setShared, notify, exec, agents, playSound, window } from "herdr";
-import { shouldAlert, quests, liveStreak, liveWeek, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
+import { shouldAlert, quests, liveStreak, liveWeek, gymView, OPTIONS, RULES_VERSION, KEYS as KEY_MAP, LABELS } from "./game.js";
 
 // The server's address: its port from POKEDEX_PORT, else "port" in config.json in its state folder
 // (as the server reads it), else 7151. Read once per copy of this file.
@@ -34,6 +34,8 @@ export const questsNow = (g) => shared(VIEW)?.quests ?? quests(g);
 export const streakNow = (g) => shared(VIEW)?.streak ?? liveStreak(g);
 // The active days among the last 7: shown out of STREAK_NEED while the streak is 0.
 export const weekNow = (g) => shared(VIEW)?.week ?? liveWeek(g);
+// The open gym and the Elite Four's week, with progress (see gymView in game.js).
+export const gymNow = (g) => shared(VIEW)?.gym ?? gymView(g);
 // The server's rules version when it differs from this copy's (time to run scripts/sync-game.sh).
 export const rulesMismatch = () => { const v = shared(VIEW); return v && v.rules !== RULES_VERSION ? v.rules : null; };
 
