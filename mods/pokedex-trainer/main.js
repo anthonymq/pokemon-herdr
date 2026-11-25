@@ -87,13 +87,16 @@ export default class PokedexTrainer extends View {
         : this.fact("Streak", `${weekNow(g)}/${STREAK_NEED}`, `days this week \u00b7 best ${g.streak.best}${frozen}`),
       this.fact("Wild", `${enc.caught}/${enc.seen}`, enc.fled ? `${enc.fled} fled` : null),
     ];
-    return h_flex().flex_none().p(10).gap(12).items_center().rounded(6).bg(C.panel)
-      .when(Boolean(lead), el => el.child(image(`mods/pokedex-agents/pokemon/${lead.id}.png`).size(64).flex_none()))
-      .child(v_flex().w(150).flex_none().gap(4)
-        .child(div().font_family(PIXEL).text_size(20).text_color(C.cream).child(`TRAINER LV ${tr}`))
-        .child(this.bar(Math.min(1, (g.lifetime - lo) / (hi - lo)), 5))
-        .child(div().text_size(10).text_color(C.muted).child(`${g.lifetime} / ${hi} XP`)))
-      .child(h_flex().flex_1().min_w(0).gap(16).pl(12).children(facts.map(f => div().flex_1().min_w(0).child(f))));
+    // The facts sit beside the trainer level, four across; a narrow window moves them under it.
+    return h_flex().flex_none().flex_wrap().p(10).gap_x(24).gap_y(10).items_center().rounded(6).bg(C.panel)
+      .child(h_flex().flex_none().gap(12).items_center()
+        .when(Boolean(lead), el => el.child(image(`mods/pokedex-agents/pokemon/${lead.id}.png`).size(64).flex_none()))
+        .child(v_flex().w(150).flex_none().gap(4)
+          .child(div().font_family(PIXEL).text_size(20).text_color(C.cream).child(`TRAINER LV ${tr}`))
+          .child(this.bar(Math.min(1, (g.lifetime - lo) / (hi - lo)), 5))
+          .child(div().text_size(10).text_color(C.muted).child(`${g.lifetime} / ${hi} XP`))))
+      .child(h_flex().flex_grow(1).flex_basis(400).min_w(0).flex_wrap().gap_x(16).gap_y(6)
+        .children(facts.map(f => div().flex_grow(1).flex_basis(90).min_w(0).child(f))));
   }
 
   // A Pokemon to pick (a starter, a gift): its sprite and name, clickable.
@@ -159,7 +162,8 @@ export default class PokedexTrainer extends View {
       .child(div().flex_none().w(46).text_size(11).font_bold().text_color(q.tier ? TIER_COLOR[q.tier - 1] : C.muted)
         .child(q.tier ? TIERS[q.tier - 1] : "\u2014"))
       .child(div().flex_1().min_w(0).truncate().text_color(q.done ? C.muted : C.cream).child(q.goal))
-      .when(!q.done, el => el.child(div().flex_none().text_size(10).text_color(C.muted).child(q.reward)))
+      .when(!q.done, el => el.child(div().id(`quest-reward-${q.id}`).min_w(0).max_w(150).truncate().text_size(10).text_color(C.muted)
+        .tooltip(`Next tier pays ${q.reward}`).child(q.reward)))
       .child(div().flex_none().min_w(44).whitespace_nowrap().text_size(12).font_semibold().text_color(q.done ? C.gold : C.cream).child(`${q.n}/${q.need}`))
       .when(q.rerollable, el => el.child(this.link(`reroll-${q.id}`, "Reroll", "Swap it for another quest (once a day)",
         (_e, cx) => { this.act(cx, "rerollQuest", q.id); cx.notify(); })));
@@ -218,7 +222,7 @@ export default class PokedexTrainer extends View {
   gym(v) {
     const head = (title, note) => h_flex().gap(8).items_center()
       .child(div().flex_1().min_w(0).truncate().font_family(PIXEL).text_size(13).text_color(C.cream).child(title))
-      .when(Boolean(note), el => el.child(div().flex_none().text_size(10).text_color(C.muted).child(note)));
+      .when(Boolean(note), el => el.child(div().min_w(0).truncate().text_size(10).text_color(C.muted).child(note)));
     const box = () => v_flex().id("trainer-gym").flex_none().p(8).gap(4).rounded(6).bg(C.panel);
     if (v.gym) {
       const x = v.gym;
@@ -313,14 +317,16 @@ export default class PokedexTrainer extends View {
         .when(party.length === 0, el => el.child(this.starter(g)))
         .children(g.gifts.pending.map(t => this.gift(t)))
         .child(this.identity(g, party, caught))
-        .child(h_flex().flex_none().gap(14).items_start()
-          .child(v_flex().flex_1().min_w(0).gap(6)
+        // Each column wants 440 px: side by side in the usual window, stacked (and scrolling) when the
+        // window leaves the dialog narrower than two of them.
+        .child(h_flex().flex_none().flex_wrap().gap_x(14).gap_y(6).items_start()
+          .child(v_flex().flex_grow(1).flex_basis(440).min_w(0).gap(6)
             .child(this.section("QUESTS"))
             .child(v_flex().flex_none().gap(3).children(questsNow(g).map(q => this.quest(q))))
             .when(Boolean(gymView), el => el.child(this.section(gymView.gym ? "GYM" : gymView.league ? "ELITE FOUR" : "HALL OF FAME")).child(this.gym(gymView)))
             .child(this.section("BAG"))
             .child(this.bag(g)))
-          .child(v_flex().flex_1().min_w(0).gap(6)
+          .child(v_flex().flex_grow(1).flex_basis(440).min_w(0).gap(6)
             .when(party.length > 0, el => el
               .child(this.section(`PARTY \u00b7 ${party.length}/${PARTY_MAX}`, this.link("trainer-party-edit", "Change party",
                 "Add catches to your party or take them out",
